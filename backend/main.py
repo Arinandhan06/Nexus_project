@@ -250,6 +250,97 @@ def mark_intro_seen_endpoint(current_user: dict = Depends(get_current_user)):
     database.mark_intro_seen(current_user["id"])
     return {"status": "ok", "intro_seen": True}
 
+# --- ARIA MENTOR ENDPOINTS ---
+import aria as aria_mod
+from collections import defaultdict
+
+_user_aria_timestamps = defaultdict(list)
+
+def check_aria_rate_limit(user_id: int):
+    now = time.time()
+    window_start = now - 60.0
+    timestamps = [ts for ts in _user_aria_timestamps[user_id] if ts > window_start]
+    if len(timestamps) >= 20:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Maximum 20 ARIA requests per minute."
+        )
+    timestamps.append(now)
+    _user_aria_timestamps[user_id] = timestamps
+
+class AriaChatRequest(BaseModel):
+    message: str
+    code: Optional[str] = ""
+    challenge_id: str
+    language: Optional[str] = "python"
+    is_stuck: Optional[bool] = False
+
+@app.post("/aria/chat")
+def aria_chat_endpoint(
+    payload: AriaChatRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user["id"]
+    check_aria_rate_limit(user_id)
+
+    # Input length validation
+    if len(payload.message) > 1000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Message exceeds 1,000 character limit."
+        )
+    if payload.code and len(payload.code.encode("utf-8")) > 20 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Code exceeds 20 KB limit."
+        )
+
+    challenge_id = payload.challenge_id.strip()
+    if not challenge_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Challenge ID is required."
+        )
+
+    # Hint level handling
+    if payload.is_stuck or ("stuck" in payload.message.lower() and "hint" in payload.message.lower()):
+        hint_level = database.increment_aria_hint_level(user_id, challenge_id)
+    else:
+        hint_level = database.get_aria_hint_level(user_id, challenge_id)
+
+    # Get or create challenge chat session and save user message
+    session_id = database.get_or_create_aria_session(user_id, challenge_id)
+    database.save_chat_message(session_id, "user", payload.message)
+
+    # Generate ARIA response
+    reply = aria_mod.ask_aria(
+        user_message=payload.message,
+        code=payload.code or "",
+        challenge_context={"title": challenge_id, "statement": ""},
+        hint_level=hint_level
+    )
+
+    # Save ARIA response in chat history
+    database.save_chat_message(session_id, "assistant", reply)
+
+    return {
+        "reply": reply,
+        "hint_level": hint_level
+    }
+
+@app.get("/aria/history")
+def aria_history_endpoint(
+    challenge_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user["id"]
+    history = database.get_aria_history(user_id, challenge_id)
+    hint_level = database.get_aria_hint_level(user_id, challenge_id)
+    return {
+        "history": history,
+        "hint_level": hint_level
+    }
+
 class UpdateProjectsRequest(BaseModel):
     projects: list
 

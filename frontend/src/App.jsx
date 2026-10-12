@@ -5,6 +5,7 @@ import LoginSignup from "./pages/LoginSignup";
 import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import Safehouse from "./pages/Safehouse";
+import Construct from "./pages/Construct";
 import Chambers from "./pages/Chambers";
 import Matrix from "./pages/Matrix";
 import UploadResume from "./pages/UploadResume";
@@ -42,6 +43,7 @@ function AuthenticatedApp({ currentUser, onLogout, onOnboardingComplete, onIntro
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/safehouse" element={<Safehouse />} />
+            <Route path="/safehouse/construct" element={<Construct />} />
             <Route path="/chambers" element={<Chambers />} />
             <Route path="/matrix" element={<Matrix currentUser={currentUser} />} />
             <Route path="/profile" element={<Profile currentUser={currentUser} />} />

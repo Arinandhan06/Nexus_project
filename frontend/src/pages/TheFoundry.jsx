@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import Editor from "@monaco-editor/react";
+import CodeEditor from "../components/nexus/CodeEditor";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Play, CheckCircle, ArrowLeft, Cpu, AlertCircle,
@@ -381,21 +381,11 @@ export default function TheFoundry() {
                     </div>
 
                     <div className="flex-1 relative w-full overflow-hidden">
-                        <Editor
+                        <CodeEditor
                             height="100%"
-                            width="100%"
-                            defaultLanguage="python"
-                            theme="vs-dark"
+                            language="python"
                             value={code}
                             onChange={handleEditorChange}
-                            options={{
-                                minimap: { enabled: false },
-                                fontSize: 14,
-                                fontFamily: "'Fira Code', monospace",
-                                scrollBeyondLastLine: false,
-                                padding: { top: 16 },
-                                automaticLayout: true
-                            }}
                         />
                     </div>
                 </div>

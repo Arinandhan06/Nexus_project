@@ -1,0 +1,98 @@
+[
+  {
+    "id": "arr-two-sum",
+    "category": "Arrays & Hash Maps",
+    "title": "Pair Sum Target",
+    "statement": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. Assume each input has exactly one solution, and you may not use the same element twice.",
+    "starter_code": "def pair_sum(nums: list[int], target: int) -> list[int]:\n    # Write your solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "str-reverse-words",
+    "category": "Strings",
+    "title": "Reverse Words in String",
+    "statement": "Given an input string s, reverse the order of the words. A word is defined as a sequence of non-space characters. The words in s should be returned separated by a single space.",
+    "starter_code": "def reverse_words(s: str) -> str:\n    # Write your solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "arr-contains-duplicate",
+    "category": "Arrays & Hash Maps",
+    "title": "Detect Duplicate Elements",
+    "statement": "Given an integer array nums, return True if any value appears at least twice in the array, and return False if every element is distinct.",
+    "starter_code": "def contains_duplicate(nums: list[int]) -> bool:\n    # Write your solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "str-valid-palindrome",
+    "category": "Strings",
+    "title": "Valid Alpha Palindrome",
+    "statement": "A phrase is a palindrome if, after converting all uppercase letters into lowercase letters and removing all non-alphanumeric characters, it reads the same forward and backward.",
+    "starter_code": "def is_palindrome(s: str) -> bool:\n    # Write your solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "hm-valid-anagram",
+    "category": "Hash Maps",
+    "title": "Anagram Verification",
+    "statement": "Given two strings s and t, return True if t is an anagram of s, and False otherwise. An anagram is formed by rearranging the letters of another word using all original letters once.",
+    "starter_code": "def is_anagram(s: str, t: str) -> bool:\n    # Write your solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "arr-max-subarray",
+    "category": "Arrays",
+    "title": "Maximum Subarray Sum",
+    "statement": "Given an integer array nums, find the subarray with the largest sum, and return its sum (Kadane's algorithm).",
+    "starter_code": "def max_sub_array(nums: list[int]) -> int:\n    # Write your solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "rec-fibonacci",
+    "category": "Recursion",
+    "title": "Nth Fibonacci Term",
+    "statement": "Compute the Nth Fibonacci number where F(0) = 0, F(1) = 1, and F(n) = F(n-1) + F(n-2) for n > 1.",
+    "starter_code": "def fib(n: int) -> int:\n    # Write your recursive or memoized solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "rec-sum-digits",
+    "category": "Recursion",
+    "title": "Recursive Digit Sum",
+    "statement": "Given a non-negative integer n, recursively calculate and return the sum of its individual digits.",
+    "starter_code": "def sum_digits(n: int) -> int:\n    # Write your recursive solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "sort-merge-sorted",
+    "category": "Sorting",
+    "title": "Merge Two Sorted Arrays",
+    "statement": "You are given two integer arrays nums1 and nums2, both sorted in non-decreasing order. Merge both into a single sorted list and return it.",
+    "starter_code": "def merge_sorted(nums1: list[int], nums2: list[int]) -> list[int]:\n    # Write your merge solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "sort-bubble-sort",
+    "category": "Sorting",
+    "title": "Bubble Sort Implementation",
+    "statement": "Implement bubble sort to sort an integer array in ascending order in-place or returning a new list.",
+    "starter_code": "def bubble_sort(nums: list[int]) -> list[int]:\n    # Write your bubble sort here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "hm-frequency-counter",
+    "category": "Hash Maps",
+    "title": "Most Frequent Element",
+    "statement": "Given an array of integers nums, find and return the integer that occurs most frequently. If there are ties, return the smallest integer.",
+    "starter_code": "def most_frequent(nums: list[int]) -> int:\n    # Write your solution here\n    pass\n",
+    "language": "python"
+  },
+  {
+    "id": "rec-power",
+    "category": "Recursion",
+    "title": "Recursive Exponentiation",
+    "statement": "Implement pow(base, exp) using recursion to compute base raised to the non-negative integer power exp.",
+    "starter_code": "def power(base: float, exp: int) -> float:\n    # Write your recursive power implementation here\n    pass\n",
+    "language": "python"
+  }
+]

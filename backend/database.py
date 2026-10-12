@@ -162,6 +162,18 @@ def init_db():
         ON chamber_attempts (user_id, chamber_no)
     ''')
 
+    # ARIA Hint Ladder Tracking Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS aria_hints (
+            user_id INTEGER,
+            challenge_id TEXT,
+            level INTEGER DEFAULT 1,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(user_id, challenge_id),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    ''')
+
     # NEW: Global Projects Table for persistence
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS projects (
@@ -1151,6 +1163,53 @@ def get_user_activity(user_id):
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+# --- ARIA MENTOR HELPERS ---
+def get_aria_hint_level(user_id: int, challenge_id: str) -> int:
+    """Returns current hint level (1-3) for user on a challenge, defaulting to 1."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT level FROM aria_hints WHERE user_id = ? AND challenge_id = ?", (user_id, str(challenge_id)))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return max(1, min(3, int(row[0])))
+    return 1
+
+def set_aria_hint_level(user_id: int, challenge_id: str, level: int) -> int:
+    """Sets hint level clamped between 1 and 3."""
+    clamped_level = max(1, min(3, int(level)))
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO aria_hints (user_id, challenge_id, level, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id, challenge_id) DO UPDATE SET
+            level = excluded.level,
+            updated_at = CURRENT_TIMESTAMP
+    """, (user_id, str(challenge_id), clamped_level))
+    conn.commit()
+    conn.close()
+    return clamped_level
+
+def increment_aria_hint_level(user_id: int, challenge_id: str) -> int:
+    """Increments hint level by 1, up to maximum 3."""
+    current = get_aria_hint_level(user_id, challenge_id)
+    next_level = min(3, current + 1)
+    set_aria_hint_level(user_id, challenge_id, next_level)
+    return next_level
+
+def get_aria_challenge_session_id(user_id: int, challenge_id: str) -> str:
+    return f"aria_user_{user_id}_chal_{challenge_id}"
+
+def get_or_create_aria_session(user_id: int, challenge_id: str) -> str:
+    session_id = get_aria_challenge_session_id(user_id, challenge_id)
+    create_chat_session(session_id, user_id, title=f"ARIA Secure Comms - {challenge_id}")
+    return session_id
+
+def get_aria_history(user_id: int, challenge_id: str):
+    session_id = get_aria_challenge_session_id(user_id, challenge_id)
+    return get_chat_history(session_id)
 
 # Initialize DB
 init_db()
