@@ -1,16 +1,11 @@
 import os
 import json
-from openai import OpenAI
+from llm import get_client, MODEL
 
 class MirrorAgent:
     def __init__(self):
-        self.api_key = os.getenv("GROQ_API_KEY")
-        # Initialize OpenAI client for Groq Cloud
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url="https://api.groq.com/openai/v1"
-        )
-        self.model_id = "llama-3.3-70b-versatile"
+        self.client = get_client()
+        self.model_id = MODEL
 
     def analyze_resume(self, text, target_role):
         # If content starts with Vision Tag, handle differently? 
@@ -47,7 +42,7 @@ class MirrorAgent:
             print(f"Error analyzing resume: {e}")
             # Fallback Profile
             return {
-                "personal_details": {"name": "Cadet X", "email": "cadet@sentinel.ai"},
+                "personal_details": {"name": "Cadet X", "email": "cadet@nexus.ai"},
                 "education": [],
                 "experience": [],
                 "current_skills": ["Python", "JavaScript", "Problem Solving"],
@@ -56,7 +51,7 @@ class MirrorAgent:
             }
 
     def analyze_image_resume(self, base64_image, target_role):
-        """Uses Llama Vision to analyze an image-based resume"""
+        """Uses Vision to analyze an image-based resume"""
         print("Using Vision Model for Resume Analysis...")
         prompt = f"""
         Analyze this RESUME IMAGE for a {target_role} role. 
@@ -73,8 +68,7 @@ class MirrorAgent:
         
         try:
             response = self.client.chat.completions.create(
-                # Switch to Llama 4 Maverick (Newest Multimodal)
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                model=self.model_id,
                 messages=[
                     {
                         "role": "user",

@@ -11,6 +11,7 @@ import {
   Sparkles
 } from "lucide-react";
 import Galaxy from "../components/Galaxy";
+import api from "../lib/api";
 
 export default function LoginSignup({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -35,21 +36,15 @@ export default function LoginSignup({ onLogin }) {
 
     try {
       if (isLogin) {
-        const response = await fetch("http://localhost:8000/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: formData.email, password: formData.password })
+        const response = await api.post("/login", {
+          email: formData.email,
+          password: formData.password
         });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.detail || "Login failed");
-        }
+        const data = response.data;
 
         if (data.token) {
           sessionStorage.setItem("authToken", data.token);
-          // Optional: Store user info
           sessionStorage.setItem("userName", data.name);
           sessionStorage.setItem("userEmail", data.email);
 
@@ -57,29 +52,19 @@ export default function LoginSignup({ onLogin }) {
           else navigate("/");
         }
       } else {
-        // Signup logic
-        const response = await fetch("http://localhost:8000/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            password: formData.password
-          })
+        await api.post("/auth/signup", {
+          name: formData.name,
+          email: formData.email,
+          password: formData.password
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.detail || "Signup failed");
-        }
 
         alert("Account created successfully! Please sign in.");
         setIsLogin(true);
       }
     } catch (error) {
       console.error("Auth error:", error);
-      alert(error.message);
+      const msg = error.response?.data?.detail || error.message || "Authentication failed";
+      alert(msg);
     }
   };
 
@@ -131,10 +116,10 @@ export default function LoginSignup({ onLogin }) {
                 <Sparkles size={32} className="text-white" />
               </div>
             </motion.div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent mb-2">
-              Career AI
+            <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 bg-clip-text text-transparent mb-2">
+              NEXUS: CODE AWAKENING
             </h1>
-            <p className="text-gray-600 text-sm">Grow your career with nature's wisdom</p>
+            <p className="text-gray-400 text-sm">Enter the coding gauntlet</p>
           </motion.div>
 
           {/* Form Container with Animated Gradient Border */}

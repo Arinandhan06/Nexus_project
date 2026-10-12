@@ -187,28 +187,6 @@ def init_db():
         )
     ''')
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_goals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER,
-            text TEXT,
-            tag TEXT,
-            color TEXT,
-            is_done BOOLEAN DEFAULT 0,
-            FOREIGN KEY(profile_id) REFERENCES profiles(id)
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_activity (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER,
-            date TEXT, -- YYYY-MM-DD
-            hours REAL,
-            level INTEGER,
-            FOREIGN KEY(profile_id) REFERENCES profiles(id)
-        )
-    ''')
     
     # Migrations for Profile Details
     columns = [
@@ -260,26 +238,6 @@ def delete_goal(goal_id):
     conn.commit()
     conn.close()
 
-# --- ACTIVITY API ---
-def get_user_activity(profile_id):
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    # Get last 365 days
-    cursor.execute('SELECT * FROM user_activity WHERE profile_id = ? ORDER BY date DESC LIMIT 365', (profile_id,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-def log_user_activity(profile_id, date, hours, level):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    # Upsert logic (replace if same day exists)
-    cursor.execute('DELETE FROM user_activity WHERE profile_id = ? AND date = ?', (profile_id, date))
-    cursor.execute('INSERT INTO user_activity (profile_id, date, hours, level) VALUES (?, ?, ?, ?)',
-                  (profile_id, date, hours, level))
-    conn.commit()
-    conn.close()
 
 # --- PROFILE UPDATE ---
 def update_profile_details(profile_id, updates):
@@ -789,10 +747,6 @@ def get_user_tree_stats(user_id):
     count = res[0] if res else 0
     conn.close()
     return count * 5
-        
-    user = get_user_by_id(session['user_id'])
-    conn.close()
-    return user
 
 def get_channels():
     conn = sqlite3.connect(DB_PATH)
@@ -850,12 +804,6 @@ def add_community_message(user_id, channel_name, content, msg_type="text"):
     conn.close()
     return True
 
-def update_project_code(project_id, code):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('UPDATE projects SET code_content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (code, project_id))
-    conn.commit()
-    conn.close()
 
 def log_user_activity(user_id, date_str, hours, level):
     conn = sqlite3.connect(DB_PATH)

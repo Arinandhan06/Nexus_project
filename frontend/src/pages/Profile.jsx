@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { User, Mail, MapPin, Calendar, Award, BookOpen, Star, Shield, Edit, Camera, Check } from "lucide-react";
 import TopBar from "../components/TopBar";
 import ActivityHeatmap from "../components/ActivityHeatmap";
-import axios from "axios";
+import api from "../lib/api";
 
 export default function Profile() {
   const [profileData, setProfileData] = useState(null);
@@ -15,11 +15,8 @@ export default function Profile() {
   // Real activity data for heatmap
   const [activityData, setActivityData] = useState([]);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
   const fetchProfile = async () => {
+    await Promise.resolve();
     const token = sessionStorage.getItem("authToken");
     if (!token) {
       setLoading(false);
@@ -27,9 +24,7 @@ export default function Profile() {
       return;
     }
     try {
-      const res = await axios.get("http://localhost:8000/profile", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get("/profile");
       if (res.data.error) {
         setLoading(false);
         return;
@@ -46,13 +41,20 @@ export default function Profile() {
     }
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchProfile();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
   const toggleGoal = async (goal) => {
     // Optimistic UI
     const updatedGoals = goals.map(g => g.id === goal.id ? { ...g, is_done: !g.is_done } : g);
     setGoals(updatedGoals);
 
     try {
-      await axios.put(`http://localhost:8000/profile/goals/${goal.id}`, { is_done: !goal.is_done });
+      await api.put(`/profile/goals/${goal.id}`, { is_done: !goal.is_done });
     } catch (e) {
       console.error("Failed to update goal");
       // Revert
@@ -81,10 +83,7 @@ export default function Profile() {
     };
 
     try {
-      const token = sessionStorage.getItem("authToken");
-      await axios.post("http://localhost:8000/profile/update", updates, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post("/profile/update", updates);
       setIsEditing(false);
       fetchProfile(); // Refresh
     } catch (err) {
@@ -106,7 +105,6 @@ export default function Profile() {
       setProfileData(prev => ({ ...prev, avatar: base64String }));
 
       try {
-        const token = sessionStorage.getItem("authToken");
         const updates = {
           full_name: profileData.full_name || "",
           bio: profileData.bio || "",
@@ -114,9 +112,7 @@ export default function Profile() {
           email: profileData.email || "",
           avatar: base64String
         };
-        await axios.post("http://localhost:8000/profile/update", updates, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await api.post("/profile/update", updates);
       } catch (err) {
         console.error("Failed to upload avatar");
         fetchProfile();

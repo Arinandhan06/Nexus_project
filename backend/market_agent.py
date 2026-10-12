@@ -3,14 +3,14 @@ import json
 import urllib.parse
 import random
 from tavily import TavilyClient
-
 import datetime
+from llm import MODEL
 
 class MarketAnalystAgent:
     def __init__(self, grok_client):
         self.grok = grok_client
         self.tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-        self.model_id = "llama-3.3-70b-versatile"
+        self.model_id = MODEL
         # File-Based Persistent Cache
         self.CACHE_FILE = "market_cache.json"
         self.CACHE_DURATION = {

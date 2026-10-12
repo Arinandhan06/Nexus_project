@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Lightbulb, Code, Database, Globe, Smartphone, Cpu } from "lucide-react";
-import axios from "axios";
+import api from "../lib/api";
 import { useProgressStore } from "../store/useProgressStore";
 import { ParticleCard } from "../components/MagicBento";
 
@@ -22,13 +22,10 @@ export default function ProjectLab() {
   useEffect(() => {
     // Fetch if empty
     if (generatedProjects.length === 0) {
-      const token = sessionStorage.getItem("authToken");
-      fetch("http://localhost:8000/market-match", {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.projects) setProjects(data.projects);
+      api
+        .get("/market-match")
+        .then((res) => {
+          if (res.data?.projects) setProjects(res.data.projects);
         })
         .catch((err) => console.error("Failed to fetch projects:", err));
     }
@@ -36,13 +33,10 @@ export default function ProjectLab() {
 
   const handleStartProject = async (project) => {
     try {
-      const token = sessionStorage.getItem("authToken");
-      const response = await axios.post("http://localhost:8000/project/start", {
+      const response = await api.post("/project/start", {
         title: project.title,
         tech_stack: project.tech ? project.tech.join(", ") : "React, Node.js",
         description: project.description
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       const newProject = response.data.project;
       addActiveProject(newProject);

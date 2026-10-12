@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useProgressStore } from "../store/useProgressStore";
 import { TreePine } from "lucide-react";
 import { useEffect, useState } from "react";
+import api from "../lib/api";
 
 const STAGES = [
   { label: "Sprout", min: 0, src: "https://lottie.host/e575bff6-572b-49b4-b771-3dfebd54e607/f9UyzMM2K6.lottie" },
@@ -17,12 +18,10 @@ export default function MyGrowthTree() {
   const [stats, setStats] = useState({ stage: "Sprout", trees: 0, next_goal: 5 });
 
   useEffect(() => {
-    const token = sessionStorage.getItem("authToken");
-    fetch("http://localhost:8000/growth-status", {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then((res) => res.json())
-      .then((data) => {
+    api
+      .get("/growth-status")
+      .then((res) => {
+        const data = res.data;
         if (data.progress !== undefined) setProgress(data.progress);
         setStats({
           stage: data.stage || "Sprout",

@@ -4,7 +4,7 @@ import {
     Upload, FileText, CheckCircle, ArrowLeft, X, Briefcase,
     MessageCircle, Send, Bot, Sparkles, Plus, History, Copy, Edit, Trash2
 } from "lucide-react";
-import axios from "axios";
+import api from "../lib/api";
 import { useProgressStore } from "../store/useProgressStore";
 
 export default function CareerGuidance() {
@@ -50,10 +50,7 @@ export default function CareerGuidance() {
 
     const createNewSession = async () => {
         try {
-            const token = sessionStorage.getItem("authToken"); // Get Token
-            const res = await axios.post("http://localhost:8000/chat/new", {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.post("/chat/new", {});
             const newId = res.data.session_id;
             setSessionId(newId);
             sessionStorage.setItem("active_chat_session", newId);
@@ -84,10 +81,7 @@ export default function CareerGuidance() {
 
     const loadChatHistory = async (sessId) => {
         try {
-            const token = sessionStorage.getItem("authToken"); // Get Token
-            const res = await axios.get(`http://localhost:8000/chat/history/${sessId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get(`/chat/history/${sessId}`);
             // Transform to UI format
             const hist = res.data.messages.map((m, i) => ({
                 id: i,
@@ -115,10 +109,7 @@ export default function CareerGuidance() {
 
     const loadAllSessions = async () => {
         try {
-            const token = sessionStorage.getItem("authToken"); // Get Token
-            const res = await axios.get("http://localhost:8000/chat/sessions", {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get("/chat/sessions");
             setChatHistoryList(res.data);
         } catch (e) { console.error(e); }
     }
@@ -126,10 +117,7 @@ export default function CareerGuidance() {
     const deleteSession = async (sessId) => {
         if (!confirm("Are you sure you want to delete this chat?")) return;
         try {
-            const token = sessionStorage.getItem("authToken");
-            await axios.delete(`http://localhost:8000/chat/sessions/${sessId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.delete(`/chat/sessions/${sessId}`);
             // If deleting active session, switch to new one or clear
             if (sessionId === sessId) {
                 setSessionId(null);
@@ -174,10 +162,9 @@ export default function CareerGuidance() {
         try {
             // Ensure backend URL is correct
             const token = sessionStorage.getItem("authToken");
-            const response = await axios.post("http://localhost:8000/analyze", formData, {
+            const response = await api.post("/analyze", formData, {
                 headers: {
                     "Content-Type": "multipart/form-data",
-                    Authorization: `Bearer ${token}`
                 },
             });
 
@@ -196,7 +183,7 @@ export default function CareerGuidance() {
             }]);
         } catch (error) {
             console.error("Upload error:", error);
-            alert("Analysis failed. Ensure Backend is running (http://localhost:8000).");
+            alert("Analysis failed. Ensure Backend is running.");
             setUploading(false);
         }
     };
@@ -209,13 +196,9 @@ export default function CareerGuidance() {
         setIsTyping(true);
 
         try {
-            // Updated to send JSON with session_id
-            const token = sessionStorage.getItem("authToken");
-            const res = await axios.post("http://localhost:8000/chat", {
+            const res = await api.post("/chat", {
                 message: userMsg.text,
                 session_id: sessionId
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             let responseText = res.data.response;
 
@@ -265,7 +248,7 @@ export default function CareerGuidance() {
                         setProjects(merged);
 
                         // 4. Persist to Backend (Save for Refresh)
-                        axios.post("http://localhost:8000/update-generated-projects", { projects: merged })
+                        api.post("/update-generated-projects", { projects: merged })
                             .catch(err => console.error("Failed to save projects persistence:", err));
 
                         // Remove JSON from display text
@@ -387,7 +370,7 @@ export default function CareerGuidance() {
                                 <FileText className="text-purple-400" size={20} /> AI Resume Architect
                             </h3>
                             <p className="text-sm text-gray-300 mt-1">
-                                Build a perfect resume tailored to your dream job using your Sentinel projects.
+                                Build a perfect resume tailored to your dream job using your NEXUS projects.
                             </p>
                         </div>
                         <Link to="/resume-builder" className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">

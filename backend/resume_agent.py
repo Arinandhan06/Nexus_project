@@ -1,15 +1,16 @@
-from openai import OpenAI
 import json
 import os
+from llm import get_client, MODEL
 
 class ResumeAgent:
     def __init__(self, client=None):
-        self.client = client
+        self.client = client or get_client()
+        self.model_id = MODEL
         
     def generate_resume_content(self, current_profile, completed_projects, target_job_description):
         """
         Generates tailored resume sections (Summary, Experience, Projects) 
-        based on the user's Sentinel history and the target job.
+        based on the user's NEXUS history and the target job.
         """
         
         # Format projects for the AI
@@ -32,7 +33,7 @@ class ResumeAgent:
         - Education: {current_profile.get('analysis', {}).get('education', [])}
         - Experience: {current_profile.get('analysis', {}).get('experience', [])}
         
-        ACHIEVEMENTS (From Sentinel Lab):
+        ACHIEVEMENTS (From NEXUS):
         {project_context}
         
         TASK:
@@ -57,7 +58,7 @@ class ResumeAgent:
         
         try:
             response = self.client.chat.completions.create(
-                 model="llama-3.3-70b-versatile",
+                 model=self.model_id,
                  messages=[
                      {"role": "system", "content": "You are a JSON-only resume generator."},
                      {"role": "user", "content": system_prompt}

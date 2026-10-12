@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Sparkles, FileText, Briefcase, Download, CheckCircle, PenTool } from "lucide-react";
-import axios from "axios";
+import api from "../lib/api";
 
 export default function ResumeBuilder() {
     const [jobDescription, setJobDescription] = useState("");
@@ -12,7 +12,7 @@ export default function ResumeBuilder() {
         if (!jobDescription.trim()) return;
         setGenerating(true);
         try {
-            const res = await axios.post("http://localhost:8000/resume/build", {
+            const res = await api.post("/resume/build", {
                 job_description: jobDescription
             });
             setResumeData(res.data);
@@ -56,7 +56,7 @@ export default function ResumeBuilder() {
                             <h2 className="text-xl font-bold text-white">Target Job</h2>
                         </div>
                         <p className="text-gray-400 text-sm mb-4">
-                            Paste the job description or company name here. The AI will analyze your completed Sentinel projects and build a tailored resume.
+                            Paste the job description or company name here. The AI will analyze your completed NEXUS projects and build a tailored resume.
                         </p>
                         <textarea
                             className="w-full bg-gray-950/50 border border-gray-700 rounded-xl p-4 text-gray-200 focus:border-purple-500 outline-none transition-all h-64 resize-none font-mono text-sm"
@@ -82,7 +82,7 @@ export default function ResumeBuilder() {
 
                     <div className="bg-blue-900/10 border border-blue-800/30 rounded-2xl p-6">
                         <h3 className="text-blue-300 font-medium mb-2 flex items-center gap-2">
-                            <CheckCircle size={16} /> Sentinel Advantage
+                            <CheckCircle size={16} /> NEXUS Advantage
                         </h3>
                         <p className="text-sm text-blue-400/80">
                             This AI automatically cites your **Project Lab** and **My Lab** work, converting your code contributions into professional "STAR" bullet points.
@@ -126,7 +126,7 @@ export default function ResumeBuilder() {
                                         <div key={i}>
                                             <div className="flex justify-between items-baseline mb-1">
                                                 <h5 className="font-bold text-gray-900">{proj.title}</h5>
-                                                <span className="text-xs text-gray-500">Sentinel Lab</span>
+                                                <span className="text-xs text-gray-500">NEXUS Lab</span>
                                             </div>
                                             <ul className="list-disc list-outside ml-4 space-y-1">
                                                 {proj.bullets?.map((bullet, j) => (

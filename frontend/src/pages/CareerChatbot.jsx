@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, Send, ArrowLeft, Bot, User } from "lucide-react";
-import axios from "axios";
+import api from "../lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -47,7 +47,7 @@ export default function CareerChatbot() {
       const formData = new FormData();
       formData.append("message", input);
 
-      const response = await axios.post("http://localhost:8000/chat", formData);
+      const response = await api.post("/chat", formData);
 
       const botMessage = {
         id: messages.length + 2,

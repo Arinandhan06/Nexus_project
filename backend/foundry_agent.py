@@ -1,10 +1,11 @@
 from openai import OpenAI
 import json
+from llm import MODEL
 
 class FoundryAgent:
     def __init__(self, openai_client):
         self.client = openai_client
-        self.model_id = "llama-3.3-70b-versatile" # Using the fast Groq model
+        self.model_id = MODEL
 
     def chat_architect(self, user_message, current_code, project_context, language="english"):
         """
@@ -108,8 +109,7 @@ class FoundryAgent:
         try:
             print("Auditing Screenshot with Vision Model...")
             response = self.client.chat.completions.create(
-                # Use Llama 4 Maverick (Multimodal)
-                model="meta-llama/llama-4-maverick-17b-128e-instruct", 
+                model=self.model_id, 
                 messages=[
                     {
                         "role": "user",
@@ -121,7 +121,7 @@ class FoundryAgent:
                             STRICT RULES:
                             1. The image MUST contain CODE, TERMINAL OUTPUT, or a UI that matches the objective.
                             2. If the image is unrelated (e.g. a selfie, desktop wallpaper, random meme, or blank screen), REJECT it immediately.
-                            3. If the image is a screenshot of the 'Sentinel' or 'The Architect' chat interface itself (re-uploading the instructions), REJECT it. The proof must be from an EXTERNAL platform (VS Code, Terminal, Browser, etc.).
+                            3. If the image is a screenshot of the 'NEXUS' or 'The Architect' chat interface itself (re-uploading the instructions), REJECT it. The proof must be from an EXTERNAL platform (VS Code, Terminal, Browser, etc.).
                             4. If the image is blurry or unreadable, REJECT it.
                             5. If the proof is weak or ambiguous, REJECT it.
                             

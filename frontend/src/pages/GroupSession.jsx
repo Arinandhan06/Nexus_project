@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Globe } from 'lucide-react';
-import axios from 'axios';
+import api from '../lib/api';
 
 export default function GroupSession() {
     const navigate = useNavigate();
@@ -17,7 +17,7 @@ export default function GroupSession() {
         setIsJoining(true);
         setError(null);
         try {
-            const res = await axios.post("http://localhost:8000/session/join", { code: joinCode });
+            const res = await api.post("/session/join", { code: joinCode });
             // Redirect to the Foundry with that Project ID
             navigate(`/project/${res.data.project_id}/foundry`); // Corrected path
         } catch (err) {

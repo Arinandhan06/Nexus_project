@@ -1,19 +1,16 @@
 import { motion } from "framer-motion";
 import { Flame, Rocket, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
-
 import { Link } from "react-router-dom";
+import api from "../lib/api";
 
 export default function LiveFeeds() {
   const [data, setData] = useState({ hot_jobs: [], hot_projects: [] });
 
   useEffect(() => {
-    const token = sessionStorage.getItem("authToken");
-    fetch("http://localhost:8000/live-feeds", {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then((res) => res.json())
-      .then((data) => setData(data))
+    api
+      .get("/live-feeds")
+      .then((res) => setData(res.data))
       .catch((err) => console.error("Failed to fetch live feeds:", err));
   }, []);
 

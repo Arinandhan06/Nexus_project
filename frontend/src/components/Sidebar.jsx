@@ -2,35 +2,23 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProgressStore } from "../store/useProgressStore";
 import {
-  Home, // Changed from LayoutDashboard
-  FlaskConical,
-  Map,
-  Briefcase,
+  Home,
+  Shield,
+  Terminal,
+  Activity,
   ChevronLeft,
   ChevronRight,
   User,
-  BookOpen,
   LogOut,
-  Code,
-  GraduationCap,
-  Users,
   Sparkles,
-  MessageSquare,
-  Rocket, // New for Project Lab
-  Monitor, // New for My Lab
 } from "lucide-react";
-import Galaxy from "./Galaxy";
 
 const navItems = [
-  { label: "Home", icon: Home, path: "/" }, // Changed from Dashboard
-  { label: "Career Guidance", icon: FlaskConical, path: "/career-guidance" },
-  { label: "Project Lab", icon: Rocket, path: "/project-lab" }, // Changed icon
-  { label: "Community", icon: MessageSquare, path: "/community" },
-  { label: "My Lab", icon: Monitor, path: "/my-lab" }, // Changed icon
-  { label: "Collaborate", icon: Users, path: "/collaborate" },
-
-  { label: "Offline Atlas", icon: Map, path: "/offline-atlas" },
-  { label: "Job Hub", icon: Briefcase, path: "/job-hub" },
+  { label: "Home", icon: Home, path: "/" },
+  { label: "Safehouse", icon: Shield, path: "/safehouse" },
+  { label: "Chambers", icon: Terminal, path: "/chambers" },
+  { label: "Matrix", icon: Activity, path: "/matrix" },
+  { label: "Profile", icon: User, path: "/profile" },
 ];
 
 export default function Sidebar({ onLogout }) {
@@ -84,11 +72,11 @@ export default function Sidebar({ onLogout }) {
                   className="flex items-center gap-2 cursor-pointer group"
                   onClick={() => navigate("/")}
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-green-400 to-emerald-600 shadow-lg shadow-green-500/30 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-400 to-emerald-500 shadow-lg shadow-cyan-500/30 flex items-center justify-center">
                     <Sparkles size={18} className="text-white" />
                   </div>
-                  <h1 className="text-white text-xl font-bold tracking-widest group-hover:text-green-400 transition-colors">
-                    SENTINEL
+                  <h1 className="text-white text-sm font-black tracking-wider group-hover:text-cyan-400 transition-colors">
+                    NEXUS: CODE AWAKENING
                   </h1>
                 </motion.div>
                 <button

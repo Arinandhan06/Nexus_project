@@ -14,7 +14,7 @@ import {
   Smile
 } from "lucide-react";
 import TopBar from "../components/TopBar";
-import axios from "axios";
+import api from "../lib/api";
 
 // Mock Data for Channels
 
@@ -41,10 +41,7 @@ export default function CommunityChat() {
   useEffect(() => {
     const fetchChannels = async () => {
       try {
-        const token = sessionStorage.getItem("authToken");
-        const res = await axios.get("http://localhost:8000/community/channels", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get("/community/channels");
         setChannels(res.data);
         if (res.data.length > 0) setActiveChannel(res.data[0]);
       } catch (err) {
@@ -60,14 +57,13 @@ export default function CommunityChat() {
 
     const fetchMessages = async () => {
       try {
-        const token = sessionStorage.getItem("authToken");
-        const res = await axios.get(`http://localhost:8000/community/messages/${activeChannel.name}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get(`/community/messages/${activeChannel.name}`);
         // Only update if different to avoid jitter? React diffing handles this well mostly.
         // For now, simple replace.
         setMessages(res.data);
-      } catch (err) { }
+      } catch (err) {
+        console.error("Failed to fetch messages", err);
+      }
     };
 
     fetchMessages(); // Initial fetch
@@ -98,13 +94,10 @@ export default function CommunityChat() {
     setNewMessage("");
 
     try {
-      const token = sessionStorage.getItem("authToken");
-      await axios.post("http://localhost:8000/community/messages", {
+      await api.post("/community/messages", {
         channel: activeChannel.name,
         content: msgToSend,
         type: "text"
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
     } catch (err) {
       console.error("Failed to send", err);

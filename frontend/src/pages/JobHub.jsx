@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Briefcase, MapPin, DollarSign, Clock, Star, Users, TrendingUp, Calendar, Target, Award, ExternalLink } from "lucide-react";
 import TopBar from "../components/TopBar";
 import { ParticleCard } from "../components/MagicBento";
+import api from "../lib/api";
 
 // Keep static mock data for Interviews/Offers/Stats for UI completeness (as requested only Job Matches to be scraped)
 const upcomingInterviews = [
@@ -42,13 +43,10 @@ export default function JobHub() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("authToken");
-    fetch("http://localhost:8000/job-matches", {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        setJobMatches(data.jobs || []);
+    api
+      .get("/job-matches")
+      .then(res => {
+        setJobMatches(res.data.jobs || []);
         setLoading(false);
       })
       .catch(err => {

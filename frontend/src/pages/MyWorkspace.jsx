@@ -12,7 +12,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import TopBar from "../components/TopBar";
-import axios from "axios";
+import api from "../lib/api";
 
 export default function MyWorkspace() {
   const { projectId } = useParams();
@@ -29,7 +29,7 @@ export default function MyWorkspace() {
   // Load Project Data
   useEffect(() => {
     if (projectId) {
-      axios.get(`http://localhost:8000/project/${projectId}`)
+      api.get(`/project/${projectId}`)
         .then(res => {
           setProject(res.data);
           // Determine completed phases based on current_phase from backend
@@ -56,14 +56,17 @@ export default function MyWorkspace() {
 
   useEffect(() => {
     if (phase && !code) {
-      // Use a generic template if backend doesn't provide one, or use description
-      setCode(`// Phase ${phase.id}: ${phase.title}\n// ${phase.description}\n\nfunction solution() {\n  // Write your code here\n}`);
+      const timer = setTimeout(() => {
+        // Use a generic template if backend doesn't provide one, or use description
+        setCode(`// Phase ${phase.id}: ${phase.title}\n// ${phase.description}\n\nfunction solution() {\n  // Write your code here\n}`);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [phase, code]);
 
   const handlePhaseComplete = async () => {
     try {
-      await axios.post("http://localhost:8000/project/unlock-phase", {
+      await api.post("/project/unlock-phase", {
         project_id: projectId,
         phase_id: currentPhase
       });
@@ -74,7 +77,7 @@ export default function MyWorkspace() {
       setCurrentPhase(nextPhase);
 
       // Refresh project data to ensure sync
-      const res = await axios.get(`http://localhost:8000/project/${projectId}`);
+      const res = await api.get(`/project/${projectId}`);
       setProject(res.data);
 
     } catch (err) {

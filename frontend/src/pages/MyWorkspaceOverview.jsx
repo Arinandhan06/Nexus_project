@@ -3,19 +3,17 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Code, Globe, Database, Smartphone, Cpu, Play, CheckCircle, Clock, Trash2 } from "lucide-react";
 import TopBar from "../components/TopBar";
+import api from "../lib/api";
 
 export default function MyWorkspaceOverview() {
   const [workspaces, setWorkspaces] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("authToken");
-    fetch("http://localhost:8000/workspace", {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        setWorkspaces(data.projects || []);
+    api
+      .get("/workspace")
+      .then(res => {
+        setWorkspaces(res.data.projects || []);
         setLoading(false);
       })
       .catch(err => {
@@ -89,7 +87,7 @@ export default function MyWorkspaceOverview() {
                       e.preventDefault();
                       e.stopPropagation();
                       if (confirm("Delete this project?")) {
-                        fetch(`http://localhost:8000/project/${workspace.id}`, { method: 'DELETE' })
+                        api.delete(`/project/${workspace.id}`)
                           .then(() => setWorkspaces(prev => prev.filter(p => p.id !== workspace.id)));
                       }
                     }}

@@ -14,12 +14,26 @@ from foundry_agent import FoundryAgent
 from market_agent import MarketAnalystAgent
 from resume_agent import ResumeAgent
 from datetime import datetime, timedelta
+from llm import MODEL
 
 load_dotenv()
 database.init_db()
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+origins = [frontend_url]
+if frontend_url.endswith("/"):
+    origins.append(frontend_url.rstrip("/"))
+else:
+    origins.append(f"{frontend_url}/")
+
+app = FastAPI(title="NEXUS: CODE AWAKENING")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Initialize Agents
 mirror = MirrorAgent()
@@ -292,7 +306,7 @@ def career_chat(req: ChatRequest, user: dict = Depends(get_current_user)):
         messages = [{"role": "system", "content": context_system}] + chat_context + [{"role": "user", "content": req.message}]
 
         response = mirror.client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=MODEL,
             messages=messages
         )
         reply = response.choices[0].message.content

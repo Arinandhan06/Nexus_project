@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Settings, Newspaper, Rocket, Zap, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
+import api from "../lib/api";
 
 export default function TopBar() {
   const [items, setItems] = useState([
@@ -8,9 +9,10 @@ export default function TopBar() {
   ]);
 
   useEffect(() => {
-    fetch("http://localhost:8000/market/ticker")
-      .then(res => res.json())
-      .then(data => {
+    api
+      .get("/market/ticker")
+      .then(res => {
+        const data = res.data;
         if (data && data.ticker) {
           const newItems = data.ticker.map(t => ({
             icon: TrendingUp,

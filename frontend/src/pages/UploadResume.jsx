@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Upload, FileText, CheckCircle, ArrowLeft, X, Briefcase } from "lucide-react";
-import axios from "axios";
+import api from "../lib/api";
 import { useProgressStore } from "../store/useProgressStore";
 
 export default function UploadResume() {
@@ -41,7 +41,7 @@ export default function UploadResume() {
     formData.append("target_role", targetRole);
 
     try {
-      const response = await axios.post("http://localhost:8000/analyze", formData, {
+      const response = await api.post("/analyze", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },

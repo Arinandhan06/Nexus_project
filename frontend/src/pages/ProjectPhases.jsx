@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle, Lock, Play, Code, Database, Globe, Rocket, Terminal } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../lib/api";
 
 export default function ProjectPhases() {
     const { projectId } = useParams();
@@ -14,7 +14,7 @@ export default function ProjectPhases() {
         // If projectId starts with "proj_", fetch from /project/:id
         // otherwise fallback or error
         if (projectId) {
-            axios.get(`http://localhost:8000/project/${projectId}`)
+            api.get(`/project/${projectId}`)
                 .then(res => {
                     setProject(res.data);
                     setLoading(false);
@@ -28,12 +28,12 @@ export default function ProjectPhases() {
 
     const handleUnlockPhase = async (phaseId) => {
         try {
-            await axios.post("http://localhost:8000/project/unlock-phase", {
+            await api.post("/project/unlock-phase", {
                 project_id: projectId,
                 phase_id: phaseId
             });
             // Refresh project state
-            const res = await axios.get(`http://localhost:8000/project/${projectId}`);
+            const res = await api.get(`/project/${projectId}`);
             setProject(res.data);
         } catch (err) {
             console.error("Failed to unlock phase", err);

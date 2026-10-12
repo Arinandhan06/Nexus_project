@@ -9,7 +9,7 @@ import {
   Cpu,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../lib/api";
 import { useProgressStore } from "../store/useProgressStore";
 
 const iconMap = {
@@ -28,11 +28,11 @@ export default function ProjectSuggestions() {
   useEffect(() => {
     // Only fetch if we don't have projects (e.g. on refresh)
     if (generatedProjects.length === 0) {
-      fetch("http://localhost:8000/market-match")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.projects) {
-            setProjects(data.projects);
+      api
+        .get("/market-match")
+        .then((res) => {
+          if (res.data?.projects) {
+            setProjects(res.data.projects);
           }
         })
         .catch((err) => console.error("Failed to fetch projects:", err));
@@ -41,7 +41,7 @@ export default function ProjectSuggestions() {
 
   const handleStartProject = async (project) => {
     try {
-      const response = await axios.post("http://localhost:8000/project/start", {
+      const response = await api.post("/project/start", {
         title: project.title,
         tech_stack: project.tech ? project.tech.join(", ") : "React, Node.js",
         description: project.description

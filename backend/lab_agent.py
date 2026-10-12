@@ -1,11 +1,12 @@
 from typing import List
 import json
 from models import ProjectList 
+from llm import MODEL
 
 class LabAgent:
     def __init__(self, openai_client):
         self.client = openai_client
-        self.model_id = "llama-3.3-70b-versatile"
+        self.model_id = MODEL
 
     def generate_projects(self, skill_gaps: List[str]):
         prompt = f"""

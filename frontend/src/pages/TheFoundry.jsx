@@ -6,7 +6,7 @@ import {
     Play, CheckCircle, ArrowLeft, Cpu, AlertCircle,
     FileCode, Send, Paperclip, GripVertical, GripHorizontal, Users
 } from "lucide-react";
-import axios from "axios";
+import api from "../lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -52,7 +52,7 @@ export default function TheFoundry() {
         if (!projectId) return;
         const interval = setInterval(async () => {
             try {
-                const res = await axios.get(`http://localhost:8000/project/${projectId}/sync`);
+                const res = await api.get(`/project/${projectId}/sync`);
                 if (res.data.code && res.data.code !== code) {
                     // Manual sync preferred
                 }
@@ -68,7 +68,7 @@ export default function TheFoundry() {
             return;
         }
         try {
-            const res = await axios.post("http://localhost:8000/session/create", { project_id: projectId });
+            const res = await api.post("/session/create", { project_id: projectId });
             setSessionCode(res.data.code);
             alert(`Session Live! Share this code: ${res.data.code}`);
         } catch (e) { alert("Error generating code"); }
@@ -78,7 +78,7 @@ export default function TheFoundry() {
         setCode(val);
         // Debounced Sync
         const timeoutId = setTimeout(() => {
-            axios.post("http://localhost:8000/project/sync", { project_id: projectId, code: val });
+            api.post("/project/sync", { project_id: projectId, code: val });
         }, 1000);
         return () => clearTimeout(timeoutId);
     };
@@ -125,7 +125,7 @@ export default function TheFoundry() {
 
     useEffect(() => {
         if (projectId) {
-            axios.get(`http://localhost:8000/project/${projectId}`)
+            api.get(`/project/${projectId}`)
                 .then(res => {
                     setProject(res.data);
                     setCurrentPhase(res.data.current_phase);
@@ -145,7 +145,7 @@ export default function TheFoundry() {
         setMessages(prev => [...prev, { role: "system", content: "⚡ **EXECUTING CODE...**" }]);
 
         try {
-            const res = await axios.post("http://localhost:8000/foundry/validate", {
+            const res = await api.post("/foundry/validate", {
                 code: code,
                 phase_objective: activePhase?.description || "Run code"
             });
@@ -174,7 +174,7 @@ export default function TheFoundry() {
         setIsChatting(true);
 
         try {
-            const res = await axios.post("http://localhost:8000/foundry/chat", {
+            const res = await api.post("/foundry/chat", {
                 message: userMsg.content,
                 code: code,
                 project_context: {
@@ -203,7 +203,7 @@ export default function TheFoundry() {
         formData.append("phase_objective", activePhase?.description);
 
         try {
-            const res = await axios.post("http://localhost:8000/foundry/verify", formData, {
+            const res = await api.post("/foundry/verify", formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
@@ -226,7 +226,7 @@ export default function TheFoundry() {
         }
 
         try {
-            await axios.post("http://localhost:8000/project/unlock-phase", {
+            await api.post("/project/unlock-phase", {
                 project_id: projectId,
                 phase_id: currentPhase
             });
@@ -358,7 +358,7 @@ export default function TheFoundry() {
                         <button
                             onClick={async () => {
                                 try {
-                                    const res = await axios.get(`http://localhost:8000/project/${projectId}/sync`);
+                                    const res = await api.get(`/project/${projectId}/sync`);
                                     if (res.data.code) {
                                         setCode(res.data.code);
                                         // alert("Workspace Config Refreshed"); // Optional feedback
