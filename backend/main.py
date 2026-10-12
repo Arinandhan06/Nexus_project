@@ -89,77 +89,151 @@ async def verify_output(file: UploadFile = File(...), phase_objective: str = For
         return JSONResponse(status_code=500, content={"error": str(e), "approved": False})
 
 import io
+import docx
 from pypdf import PdfReader
+from typing import Optional
+from fastapi import HTTPException, status
+import resume_intel
+import schedule as schedule_mod
 
-@app.post("/analyze")
-def process_career_cycle(file: UploadFile = File(...), target_role: str = Form(...), user: dict = Depends(get_current_user)):
-    try:
-        # Read the file content
-        file_bytes = file.file.read()
-        content = ""
-        
-        # Check for PDF signature or extension
-        if file.filename.lower().endswith(".pdf") or file.content_type == "application/pdf":
-            try:
-                # Parse PDF
-                pdf = PdfReader(io.BytesIO(file_bytes))
-                for page in pdf.pages:
-                    content += page.extract_text() + "\n"
-                
-                # Check for emptiness
-                # Check for emptiness BUT PROCEED ANYWAY (Some PDFs are images)
-                if not content.strip():
-                    print("Text extraction empty. Attempting Vision Extraction (Image-based PDF)...")
-                    try:
-                        # Extract images from first page
-                        page = pdf.pages[0]
-                        if len(page.images) > 0:
-                            # Convert first image to base64
+MAX_RESUME_SIZE = 5 * 1024 * 1024  # 5 MB limit
+
+@app.post("/resume/analyze")
+async def analyze_resume_endpoint(
+    file: UploadFile = File(...),
+    target_role: Optional[str] = Form("Software Engineer"),
+    current_user: dict = Depends(get_current_user)
+):
+    # 1. Read file bytes and enforce 5MB size limit
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_RESUME_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File size exceeds the 5MB maximum limit."
+        )
+
+    filename = (file.filename or "").lower()
+    is_pdf = filename.endswith(".pdf")
+    is_docx = filename.endswith(".docx")
+
+    if not is_pdf and not is_docx:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported media type. Only .pdf and .docx files are accepted."
+        )
+
+    # 2. Validate magic bytes (PDF: %PDF, DOCX: PK\x03\x04 zip header)
+    if is_pdf:
+        if not file_bytes.startswith(b"%PDF"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Invalid file signature. File is not a valid PDF document."
+            )
+    elif is_docx:
+        if not file_bytes.startswith(b"PK\x03\x04"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Invalid file signature. File is not a valid DOCX document."
+            )
+
+    # 3. Extract text
+    extracted_text = ""
+    if is_pdf:
+        try:
+            pdf = PdfReader(io.BytesIO(file_bytes))
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    extracted_text += page_text + "\n"
+
+            # Scanned PDF vision fallback
+            if not extracted_text.strip():
+                try:
+                    for page in pdf.pages:
+                        if hasattr(page, "images") and len(page.images) > 0:
                             import base64
                             img_obj = page.images[0]
-                            img_bytes = img_obj.data
-                            base64_img = base64.b64encode(img_bytes).decode('utf-8')
-                            
-                            # Call Vision Agent
+                            base64_img = base64.b64encode(img_obj.data).decode('utf-8')
                             profile_data = mirror.analyze_image_resume(base64_img, target_role)
-                            
-                            # Skip normal text flow
-                            skill_gaps = profile_data.get("skill_gaps", [])
-                            projects = lab.generate_projects(skill_gaps)
-                            database.save_career_data(target_role, profile_data, projects, "Sprout", user['id'])
-                            return {"profile": profile_data, "projects": projects}
-                            
-                        else:
-                            content = "[WARNING: EMPTY PDF AND NO IMAGES FOUND]"
-                    except Exception as vision_err:
-                        print(f"Vision Extraction Failed: {vision_err}")
-                        content = "[WARNING: FAILED TO EXTRACT IMAGES]"
-                        
-                else:
-                    # Tag it so agent knows context
-                    content = f"[RESUME PDF CONTENT START]\n{content}\n[RESUME PDF CONTENT END]"
-            except Exception as pdf_err:
-                print(f"PDF Parsing Failed: {pdf_err}")
-                # Don't fail, just pass through (might be text file with pdf extension)
-                content = file_bytes.decode('utf-8', errors='ignore')
-        else:
-            # Fallback to Text
-            content = file_bytes.decode('utf-8', errors='ignore')
-        
-        # 1. Mirror Agent call (Returns profile dictionary)
-        profile_data = mirror.analyze_resume(content, target_role)
-        
-        # 2. Use the result to trigger the Lab Agent
-        skill_gaps = profile_data.get("skill_gaps", [])
-        projects = lab.generate_projects(skill_gaps)
-        
-        # 3. Save to History (User specific)
-        database.save_career_data(target_role, profile_data, projects, "Sprout", user['id'])
-        
-        return {"profile": profile_data, "projects": projects}
-    except Exception as e:
-        print(f"Analysis Error: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+                            skills_str = ", ".join(profile_data.get("current_skills", []))
+                            exp_str = json.dumps(profile_data.get("experience", []))
+                            extracted_text = f"Candidate Profile:\nSkills: {skills_str}\nExperience: {exp_str}"
+                            break
+                except Exception as vision_err:
+                    print(f"Vision fallback failed: {vision_err}")
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"Corrupted or unreadable PDF document: {str(e)}"
+            )
+    elif is_docx:
+        try:
+            doc = docx.Document(io.BytesIO(file_bytes))
+            parts = [p.text for p in doc.paragraphs if p.text.strip()]
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = " | ".join([cell.text.strip() for cell in row.cells if cell.text.strip()])
+                    if row_text:
+                        parts.append(row_text)
+            extracted_text = "\n".join(parts)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"Corrupted or unreadable DOCX document: {str(e)}"
+            )
+
+    # Truncate extracted text to 20,000 characters
+    extracted_text = extracted_text[:20000]
+
+    # 4. Intelligence analysis (strict JSON, capped at 60, prompt injection safe, deterministic fallback)
+    intel_result = resume_intel.analyze_resume_intelligence(extracted_text, target_role=target_role or "Software Engineer")
+    skill_tree = intel_result["skill_tree"]
+    weaknesses = intel_result["weaknesses"]
+    matrix = intel_result["matrix"]
+    resolved_target_role = intel_result.get("target_role", target_role)
+
+    # 5. 30-Day Chamber Schedule generation
+    schedule_data = schedule_mod.generate_schedule(weaknesses, matrix)
+
+    # 6. Save results to player_profile (never store file or log resume text)
+    database.save_onboarding_results(
+        user_id=current_user["id"],
+        dsa=matrix["dsa"],
+        system_design=matrix["system_design"],
+        cleanliness=matrix["cleanliness"],
+        skill_tree={"skill_tree": skill_tree, "weaknesses": weaknesses},
+        schedule=schedule_data
+    )
+
+    return {
+        "matrix": matrix,
+        "skill_tree": skill_tree,
+        "weaknesses": weaknesses,
+        "target_role": resolved_target_role,
+        "schedule": schedule_data["schedule"],
+        "taunts": schedule_data["taunts"]
+    }
+
+@app.post("/analyze")
+async def process_career_cycle(
+    file: UploadFile = File(...),
+    target_role: Optional[str] = Form("Software Engineer"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Backwards-compatible alias for /resume/analyze"""
+    return await analyze_resume_endpoint(file=file, target_role=target_role, current_user=current_user)
+
+@app.get("/profile/matrix")
+def get_matrix_endpoint(current_user: dict = Depends(get_current_user)):
+    return database.get_profile_matrix(current_user["id"])
+
+@app.get("/profile/schedule")
+def get_schedule_endpoint(current_user: dict = Depends(get_current_user)):
+    return database.get_profile_schedule(current_user["id"])
+
+@app.get("/profile/skill-tree")
+def get_skill_tree_endpoint(current_user: dict = Depends(get_current_user)):
+    return database.get_profile_skill_tree(current_user["id"])
 
 class UpdateProjectsRequest(BaseModel):
     projects: list

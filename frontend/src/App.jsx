@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import LoginSignup from "./pages/LoginSignup";
@@ -7,10 +7,17 @@ import Dashboard from "./pages/Dashboard";
 import Safehouse from "./pages/Safehouse";
 import Chambers from "./pages/Chambers";
 import Matrix from "./pages/Matrix";
+import UploadResume from "./pages/UploadResume";
 import Profile from "./pages/Profile";
 import api from "./lib/api";
 
-function AuthenticatedApp({ currentUser, onLogout }) {
+function AuthenticatedApp({ currentUser, onLogout, onOnboardingComplete }) {
+  const location = useLocation();
+
+  if (!currentUser?.onboarding_complete && location.pathname !== "/onboarding") {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-transparent text-gray-200 relative">
       {/* Global Background Layer */}
@@ -26,9 +33,10 @@ function AuthenticatedApp({ currentUser, onLogout }) {
             <Route path="/" element={<Dashboard />} />
             <Route path="/safehouse" element={<Safehouse />} />
             <Route path="/chambers" element={<Chambers />} />
-            <Route path="/matrix" element={<Matrix />} />
+            <Route path="/matrix" element={<Matrix currentUser={currentUser} />} />
             <Route path="/profile" element={<Profile currentUser={currentUser} />} />
-            <Route path="/onboarding" element={<Navigate to="/" replace />} />
+            <Route path="/onboarding" element={<UploadResume onOnboardingComplete={onOnboardingComplete} />} />
+            <Route path="/upload-resume" element={<Navigate to="/onboarding" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -114,6 +122,10 @@ export default function App() {
     return () => clearInterval(interval);
   }, [currentUser]);
 
+  const handleOnboardingComplete = () => {
+    setCurrentUser((prev) => (prev ? { ...prev, onboarding_complete: true } : prev));
+  };
+
   const handleLogout = async () => {
     try {
       await api.post("/auth/logout");
@@ -156,7 +168,11 @@ export default function App() {
                 </div>
               </div>
             ) : currentUser ? (
-              <AuthenticatedApp currentUser={currentUser} onLogout={handleLogout} />
+              <AuthenticatedApp
+                currentUser={currentUser}
+                onLogout={handleLogout}
+                onOnboardingComplete={handleOnboardingComplete}
+              />
             ) : (
               <Navigate to="/login" replace />
             )

@@ -944,6 +944,73 @@ def get_player_profile(user_id):
     conn.close()
     return dict(row) if row else None
 
+def save_onboarding_results(user_id: int, dsa: int, system_design: int, cleanliness: int, skill_tree: dict, schedule: list):
+    """Saves onboarding analysis results to player_profile and sets onboarding_complete to 1."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE player_profile
+        SET dsa_score = ?,
+            system_design_score = ?,
+            cleanliness_score = ?,
+            skill_tree_json = ?,
+            schedule_json = ?,
+            onboarding_complete = 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+    """, (dsa, system_design, cleanliness, json.dumps(skill_tree), json.dumps(schedule), user_id))
+    
+    # If no profile row existed, insert one
+    if cursor.rowcount == 0:
+        cursor.execute("""
+            INSERT INTO player_profile (user_id, total_nxp, current_streak, best_streak, current_chamber, dsa_score, system_design_score, cleanliness_score, onboarding_complete, skill_tree_json, schedule_json)
+            VALUES (?, 0, 0, 0, 1, ?, ?, ?, 1, ?, ?)
+        """, (user_id, dsa, system_design, cleanliness, json.dumps(skill_tree), json.dumps(schedule)))
+        
+    conn.commit()
+    conn.close()
+
+def get_profile_matrix(user_id: int):
+    """Returns the calibrated matrix scores (dsa, system_design, cleanliness) for user."""
+    profile = get_player_profile(user_id)
+    if not profile:
+        return {"dsa": 0, "system_design": 0, "cleanliness": 0}
+    return {
+        "dsa": profile.get("dsa_score", 0),
+        "system_design": profile.get("system_design_score", 0),
+        "cleanliness": profile.get("cleanliness_score", 0)
+    }
+
+def get_profile_schedule(user_id: int):
+    """Returns the 30-day schedule array for user."""
+    profile = get_player_profile(user_id)
+    if not profile or not profile.get("schedule_json"):
+        return {"schedule": [], "taunts": {}}
+    try:
+        raw = json.loads(profile["schedule_json"])
+        if isinstance(raw, list):
+            return {"schedule": raw, "taunts": {}}
+        elif isinstance(raw, dict):
+            return raw
+        return {"schedule": [], "taunts": {}}
+    except Exception:
+        return {"schedule": [], "taunts": {}}
+
+def get_profile_skill_tree(user_id: int):
+    """Returns the parsed skill tree dictionary and weaknesses list for user."""
+    profile = get_player_profile(user_id)
+    if not profile or not profile.get("skill_tree_json"):
+        return {"skill_tree": {}, "weaknesses": []}
+    try:
+        raw = json.loads(profile["skill_tree_json"])
+        if isinstance(raw, dict):
+            if "skill_tree" in raw:
+                return raw
+            return {"skill_tree": raw, "weaknesses": []}
+        return {"skill_tree": {}, "weaknesses": []}
+    except Exception:
+        return {"skill_tree": {}, "weaknesses": []}
+
 def get_user_me(user_id):
     """Returns safe user and profile details for the /me endpoint. Never returns secrets or tokens."""
     conn = sqlite3.connect(DB_PATH)
