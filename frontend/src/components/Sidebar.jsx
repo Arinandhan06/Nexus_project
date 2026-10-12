@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useProgressStore } from "../store/useProgressStore";
 import {
   Home,
@@ -12,6 +12,7 @@ import {
   LogOut,
   Sparkles,
 } from "lucide-react";
+import { GlitchText } from "./nexus";
 
 const navItems = [
   { label: "Home", icon: Home, path: "/" },
@@ -25,6 +26,7 @@ export default function Sidebar({ onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { sidebarOpen, toggleSidebar } = useProgressStore();
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <>
@@ -32,18 +34,19 @@ export default function Sidebar({ onLogout }) {
       <AnimatePresence>
         {!sidebarOpen && (
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -20 }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -20 }}
             className="fixed left-0 top-20 z-50"
           >
             <button
               onClick={toggleSidebar}
-              className="bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-xl border-r border-slate-700/50 p-3 rounded-r-lg shadow-lg hover:shadow-cyan-500/20 transition-all duration-300 group"
+              className="bg-zinc-950/95 backdrop-blur-xl border-r border-y border-cyan-500/30 p-3 rounded-r-xl shadow-lg hover:shadow-cyan-500/25 transition-all duration-300 group cursor-pointer"
+              aria-label="Open sidebar"
             >
               <ChevronRight
                 size={20}
-                className="text-gray-400 group-hover:text-cyan-400 transition-colors"
+                className="text-cyan-400 group-hover:translate-x-0.5 transition-transform"
               />
             </button>
           </motion.div>
@@ -54,101 +57,102 @@ export default function Sidebar({ onLogout }) {
       <AnimatePresence>
         {sidebarOpen && (
           <motion.aside
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 256, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="h-full flex flex-col p-6 border-r border-white/5 shadow-2xl relative bg-black/20 backdrop-blur-xl overflow-hidden"
+            initial={shouldReduceMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { width: 256, opacity: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
+            transition={shouldReduceMotion ? { duration: 0.15 } : { duration: 0.3, ease: "easeInOut" }}
+            className="h-full flex flex-col p-5 border-r border-zinc-800/80 shadow-2xl relative bg-[#030712]/90 backdrop-blur-2xl overflow-hidden font-mono select-none"
           >
-            {/* Local Galaxy Background REMOVED for consistency */}
-            {/* <div className="absolute inset-0 z-0"><Galaxy ... /></div> */}
-
             <div className="relative z-10 flex flex-col h-full">
-              <div className="flex items-center justify-between mb-10">
+              {/* Header / Brand */}
+              <div className="flex items-center justify-between mb-8 pb-4 border-b border-zinc-800/80">
                 <motion.div
-                  initial={{ opacity: 0, x: -20 }}
+                  initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="flex items-center gap-2 cursor-pointer group"
+                  className="flex items-center gap-2.5 cursor-pointer group"
                   onClick={() => navigate("/")}
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-400 to-emerald-500 shadow-lg shadow-cyan-500/30 flex items-center justify-center">
-                    <Sparkles size={18} className="text-white" />
+                  <div className="w-8 h-8 rounded-lg bg-cyan-950/80 border border-cyan-500/40 shadow-lg shadow-cyan-500/25 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition-transform">
+                    <Sparkles size={16} />
                   </div>
-                  <h1 className="text-white text-sm font-black tracking-wider group-hover:text-cyan-400 transition-colors">
-                    NEXUS: CODE AWAKENING
-                  </h1>
+                  <div>
+                    <h1 className="text-white text-xs font-black tracking-widest uppercase group-hover:text-cyan-400 transition-colors">
+                      <GlitchText variant="cyan" text="NEXUS" />
+                    </h1>
+                    <p className="text-[10px] text-zinc-500 tracking-wider">AWAKENING</p>
+                  </div>
                 </motion.div>
                 <button
                   onClick={toggleSidebar}
-                  className="text-gray-400 hover:text-white transition-colors bg-white/5 p-1.5 rounded-lg hover:bg-white/10"
+                  className="text-zinc-400 hover:text-white transition-colors bg-zinc-900/60 p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 cursor-pointer"
+                  aria-label="Collapse sidebar"
                 >
-                  <ChevronLeft size={18} />
+                  <ChevronLeft size={16} />
                 </button>
               </div>
 
+              {/* Navigation Items */}
               <motion.nav
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="flex-1 space-y-2 text-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="flex-1 space-y-1.5 text-xs"
               >
-                {navItems.map((item, index) => (
-                  <motion.div
-                    key={item.label}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 * index }}
-                    className={`nav-item cursor-pointer flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 relative overflow-hidden group ${location.pathname === item.path
-                      ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/10 text-cyan-400 border border-cyan-500/30"
-                      : "text-gray-400 hover:text-white hover:bg-white/5 border border-transparent"
+                {navItems.map((item, index) => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <motion.div
+                      key={item.label}
+                      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: shouldReduceMotion ? 0 : 0.05 * index }}
+                      className={`cursor-pointer flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 relative overflow-hidden group ${
+                        isActive
+                          ? "bg-cyan-950/40 text-cyan-300 border border-cyan-500/40 shadow-[0_0_15px_rgba(34,211,238,0.15)]"
+                          : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/60 border border-transparent"
                       }`}
-                    onClick={() => navigate(item.path)}
-                  >
-                    {location.pathname === item.path && (
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500 shadow-[0_0_10px_2px_rgba(6,182,212,0.5)]"></div>
-                    )}
-                    <item.icon
-                      size={18}
-                      className={`transition-transform duration-300 ${location.pathname === item.path ? "scale-110 drop-shadow-[0_0_5px_rgba(6,182,212,0.5)]" : "group-hover:scale-110"}`}
-                    />
-                    <span className="font-medium tracking-wide">{item.label}</span>
-                  </motion.div>
-                ))}
+                      onClick={() => navigate(item.path)}
+                    >
+                      {isActive && (
+                        <div className="absolute left-0 top-1 bottom-1 w-1 bg-cyan-400 rounded-r shadow-[0_0_8px_#22d3ee]"></div>
+                      )}
+                      <item.icon
+                        size={16}
+                        className={`transition-colors shrink-0 ${
+                          isActive ? "text-cyan-400 drop-shadow-[0_0_5px_#22d3ee]" : "text-zinc-500 group-hover:text-zinc-300"
+                        }`}
+                      />
+                      <span className="font-semibold tracking-wider uppercase text-[11px]">{item.label}</span>
+                    </motion.div>
+                  );
+                })}
               </motion.nav>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="mt-6 pt-4 border-t border-white/10"
-              >
+              {/* User Profile & Logout */}
+              <div className="pt-4 mt-auto border-t border-zinc-800/80 space-y-2">
                 <div
-                  onClick={() => navigate('/profile')}
-                  className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-colors group"
+                  onClick={() => navigate("/profile")}
+                  className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800/80 hover:border-cyan-500/40 cursor-pointer hover:bg-zinc-900/80 transition-colors group"
                 >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center border border-white/10 group-hover:border-cyan-500/50 transition-colors">
-                    <User size={20} className="text-gray-300 group-hover:text-cyan-400" />
+                  <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center border border-zinc-700 group-hover:border-cyan-500/40 transition-colors shrink-0">
+                    <User size={16} className="text-zinc-400 group-hover:text-cyan-400" />
                   </div>
-                  <div>
-                    <p className="font-bold text-white text-sm group-hover:text-cyan-400 transition-colors">
-                      {sessionStorage.getItem("userName") || "Cadet"}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-white text-xs truncate group-hover:text-cyan-300 transition-colors">
+                      {sessionStorage.getItem("userName") || "CADET"}
                     </p>
-                    {/* Level removed as requested */}
+                    <p className="text-[10px] text-zinc-500 uppercase">Profile Settings</p>
                   </div>
                 </div>
 
                 <button
                   onClick={onLogout}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-300 group font-medium"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs text-zinc-400 hover:text-red-400 hover:bg-red-950/30 rounded-xl transition-all border border-transparent hover:border-red-500/30 cursor-pointer uppercase font-semibold tracking-wider"
                 >
-                  <LogOut
-                    size={16}
-                    className="group-hover:translate-x-1 transition-transform"
-                  />
+                  <LogOut size={14} />
                   <span>Logout</span>
                 </button>
-              </motion.div>
+              </div>
             </div>
           </motion.aside>
         )}

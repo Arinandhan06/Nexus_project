@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { User, Mail, MapPin, Calendar, Award, BookOpen, Star, Shield, Edit, Camera, Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+import { User, Mail, MapPin, Calendar, Award, BookOpen, Star, Shield, Edit, Camera, Check, Play, Terminal } from "lucide-react";
 import TopBar from "../components/TopBar";
 import ActivityHeatmap from "../components/ActivityHeatmap";
 import api from "../lib/api";
+import { NexusPanel, NexusButton, StatBadge, GlitchText } from "../components/nexus";
 
 export default function Profile({ currentUser }) {
   const [profileData, setProfileData] = useState(null);
@@ -142,46 +144,51 @@ export default function Profile({ currentUser }) {
     chamber: meData?.current_chamber ?? 1,
   };
 
+  const navigate = useNavigate();
+  const shouldReduceMotion = useReducedMotion();
+
   const stats = [
-    { label: "Nexus Points (NXP)", value: `${user.nxp} NXP`, icon: Star, color: "text-emerald-400", bg: "bg-emerald-400/10" },
-    { label: "Chamber Streak", value: `${user.streak} (Best: ${user.bestStreak})`, icon: Shield, color: "text-cyan-400", bg: "bg-cyan-400/10" },
-    { label: "Active Chamber", value: `Chamber ${user.chamber}`, icon: BookOpen, color: "text-blue-400", bg: "bg-blue-400/10" },
-    { label: "Goals Completed", value: goals.filter(g => g.is_done).length, icon: Award, color: "text-purple-400", bg: "bg-purple-400/10" }
+    { label: "Nexus Points (NXP)", value: `${user.nxp} NXP`, icon: Star, color: "text-emerald-400", bg: "bg-emerald-950/60 border border-emerald-500/30" },
+    { label: "Chamber Streak", value: `${user.streak} (Best: ${user.bestStreak})`, icon: Shield, color: "text-cyan-400", bg: "bg-cyan-950/60 border border-cyan-500/30" },
+    { label: "Active Chamber", value: `Chamber ${user.chamber}`, icon: BookOpen, color: "text-amber-400", bg: "bg-amber-950/60 border border-amber-500/30" },
+    { label: "Goals Completed", value: goals.filter(g => g.is_done).length, icon: Award, color: "text-purple-400", bg: "bg-purple-950/60 border border-purple-500/30" }
   ];
 
-  if (loading) return <div className="p-10 text-white font-mono">Loading Cadet Profile...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#030712] text-cyan-400 font-mono">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs tracking-widest uppercase">Querying Cadet Archive...</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="flex flex-col min-h-screen bg-transparent">
+    <div className="flex flex-col min-h-screen bg-transparent font-sans">
       <TopBar />
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 sm:p-6 lg:p-8">
         <div className="max-w-5xl mx-auto space-y-6">
 
           {/* Header Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-3xl bg-slate-900/50 border border-white/10 p-8 backdrop-blur-xl"
-          >
-            {/* Background Gradient */}
-            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-purple-500/20 blur-3xl" />
-
-            <div className="relative flex flex-col md:flex-row items-center gap-8">
+          <NexusPanel variant="cyan" glow={true} className="p-6 sm:p-8">
+            <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-8">
               {/* Avatar */}
-              <div className="relative group">
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center border-4 border-emerald-500/50 shadow-xl relative z-10 overflow-hidden">
+              <div className="relative group shrink-0">
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-zinc-900 border-2 border-cyan-400/60 flex items-center justify-center shadow-xl relative z-10 overflow-hidden shadow-cyan-500/20">
                   {user.avatar ? (
                     <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <User size={64} className="text-gray-400" />
+                    <User size={56} className="text-zinc-500" />
                   )}
                 </div>
                 <button
+                  type="button"
                   onClick={handleAvatarClick}
-                  className="absolute bottom-0 right-0 p-2 bg-emerald-500 rounded-full text-zinc-950 shadow-lg z-20 hover:bg-emerald-400 transition-colors cursor-pointer"
+                  className="absolute -bottom-1 -right-1 p-2 bg-cyan-400 rounded-xl text-zinc-950 shadow-lg z-20 hover:bg-cyan-300 transition-colors cursor-pointer"
+                  aria-label="Upload Avatar"
                 >
-                  <Camera size={16} />
+                  <Camera size={15} />
                 </button>
                 <input
                   type="file"
@@ -193,119 +200,122 @@ export default function Profile({ currentUser }) {
               </div>
 
               {/* Info */}
-              <div className="flex-1 text-center md:text-left">
+              <div className="flex-1 text-center md:text-left min-w-0">
                 <div className="flex flex-col md:flex-row items-center md:justify-between gap-4">
                   <div>
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-1">
-                      <h1 className="text-3xl font-bold text-white">{user.name}</h1>
-                      <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-400">
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 mb-1.5">
+                      <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-wide">
+                        <GlitchText variant="white" text={user.name} />
+                      </h1>
+                      <span className="text-xs font-mono px-2.5 py-0.5 rounded-md bg-cyan-950/80 border border-cyan-500/40 text-cyan-300">
                         {user.username}
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-sm">
-                      <span className="text-cyan-400 font-medium">{user.role}</span>
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs font-mono">
+                      <span className="text-cyan-400 font-semibold">{user.role}</span>
                       <span className="text-zinc-600">•</span>
                       <span className="text-emerald-400 font-semibold">{user.nxp} NXP</span>
                       <span className="text-zinc-600">•</span>
-                      <span className="text-amber-400 font-medium">🔥 {user.streak} Streak</span>
+                      <span className="text-amber-400 font-semibold">🔥 {user.streak} Streak</span>
                     </div>
-                    <p className="text-gray-400 text-sm mt-2">{user.bio}</p>
+                    <p className="text-zinc-400 text-xs sm:text-sm mt-2 font-mono">{user.bio}</p>
                   </div>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white text-sm font-medium transition-colors flex items-center gap-2"
-                  >
-                    <Edit size={16} />
-                    Edit Profile
-                  </button>
+
+                  {/* Actions */}
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <NexusButton
+                      variant="cyan"
+                      size="sm"
+                      icon={Play}
+                      onClick={() => navigate("/intro")}
+                      title="Replay cinematic awakening sequence"
+                    >
+                      Replay Awakening
+                    </NexusButton>
+                    <NexusButton
+                      variant="outline"
+                      size="sm"
+                      icon={Edit}
+                      onClick={() => setIsEditing(true)}
+                    >
+                      Edit Profile
+                    </NexusButton>
+                  </div>
                 </div>
 
-                <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-4 text-sm text-gray-400">
-                  <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
-                    <Mail size={14} className="text-gray-500" />
-                    {user.email}
+                <div className="mt-5 flex flex-wrap justify-center md:justify-start gap-3 text-xs font-mono text-zinc-400">
+                  <div className="flex items-center gap-2 bg-zinc-900/70 px-3 py-1.5 rounded-lg border border-zinc-800">
+                    <Mail size={13} className="text-cyan-400" />
+                    <span>{user.email}</span>
                   </div>
-                  <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
-                    <MapPin size={14} className="text-gray-500" />
-                    {user.location}
+                  <div className="flex items-center gap-2 bg-zinc-900/70 px-3 py-1.5 rounded-lg border border-zinc-800">
+                    <MapPin size={13} className="text-cyan-400" />
+                    <span>{user.location}</span>
                   </div>
-                  <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
-                    <Calendar size={14} className="text-gray-500" />
-                    Joined {user.joinDate}
+                  <div className="flex items-center gap-2 bg-zinc-900/70 px-3 py-1.5 rounded-lg border border-zinc-800">
+                    <Calendar size={13} className="text-cyan-400" />
+                    <span>Joined {user.joinDate}</span>
                   </div>
                 </div>
               </div>
             </div>
-          </motion.div>
+          </NexusPanel>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat, index) => (
-              <motion.div
+              <NexusPanel
                 key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 + 0.2 }}
-                className="bg-slate-900/50 border border-white/10 p-6 rounded-2xl backdrop-blur-sm"
+                variant={index === 0 ? "green" : index === 1 ? "cyan" : index === 2 ? "amber" : "neutral"}
+                className="p-5"
               >
-                <div className={`w-12 h-12 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center mb-4`}>
-                  <stat.icon size={24} />
+                <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center mb-3`}>
+                  <stat.icon size={20} />
                 </div>
-                <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
-                <div className="text-sm text-gray-400">{stat.label}</div>
-              </motion.div>
+                <div className="text-2xl font-bold font-mono text-white mb-0.5">{stat.value}</div>
+                <div className="text-xs font-mono text-zinc-400">{stat.label}</div>
+              </NexusPanel>
             ))}
           </div>
 
-          {/* Additional Sections */}
+          {/* Heatmap & Goals Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4 }}
-              className="md:col-span-2 bg-slate-900/50 border border-white/10 rounded-3xl p-6 min-h-[280px] flex flex-col backdrop-blur-sm"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xl font-bold text-white">Time Spent Learning</h3>
-                <div className="bg-black/20 border border-white/10 rounded-lg px-3 py-1 text-xs text-gray-400">
-                  Last Year
+            <NexusPanel variant="neutral" className="md:col-span-2 min-h-[280px] flex flex-col">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-zinc-800/80">
+                <h3 className="text-base font-bold text-white font-mono uppercase tracking-wide">Time Spent in Chamber Trials</h3>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1 text-[11px] font-mono text-zinc-400">
+                  Cadet Activity
                 </div>
               </div>
               <div className="flex-1 flex items-center justify-center overflow-x-auto">
                 <ActivityHeatmap data={activityData} />
               </div>
-            </motion.div>
+            </NexusPanel>
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 }}
-              className="bg-slate-900/50 border border-white/10 rounded-3xl p-6 h-full min-h-[280px] backdrop-blur-sm flex flex-col"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-white">Current Goals</h3>
-                {/* Could add 'Add Goal' button here later */}
+            <NexusPanel variant="neutral" className="h-full min-h-[280px] flex flex-col">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-zinc-800/80">
+                <h3 className="text-base font-bold text-white font-mono uppercase tracking-wide">Current Protocol Goals</h3>
               </div>
 
-              <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                {goals.length === 0 && <div className="text-gray-500 text-sm">No goals set yet.</div>}
+              <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 font-mono">
+                {goals.length === 0 && <div className="text-zinc-500 text-xs">No active chamber goals.</div>}
                 {goals.map((goal, i) => (
                   <div
                     key={goal.id || i}
                     onClick={() => toggleGoal(goal)}
-                    className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 group hover:border-white/10 transition-colors cursor-pointer select-none"
+                    className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-cyan-500/40 transition-colors cursor-pointer select-none"
                   >
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${goal.is_done ? 'border-cyan-500 bg-cyan-500' : 'border-gray-600 group-hover:border-cyan-500/50'}`}>
-                      {goal.is_done && <Check size={12} className="text-black font-bold" />}
+                    <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-colors shrink-0 ${goal.is_done ? 'border-cyan-400 bg-cyan-400' : 'border-zinc-600'}`}>
+                      {goal.is_done && <Check size={11} className="text-zinc-950 font-bold" />}
                     </div>
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${goal.is_done ? 'text-gray-500 line-through' : 'text-gray-200'} transition-colors`}>{goal.text}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs truncate ${goal.is_done ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{goal.text}</p>
                     </div>
-                    <span className={`text-[10px] px-2 py-1 rounded-md font-medium ${goal.color || "text-gray-400 bg-gray-800"}`}>{goal.tag}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border border-white/5 font-mono ${goal.color || "text-zinc-400 bg-zinc-800"}`}>{goal.tag}</span>
                   </div>
                 ))}
               </div>
-            </motion.div>
+            </NexusPanel>
           </div>
 
         </div>

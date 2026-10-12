@@ -50,6 +50,16 @@ resume_bot = ResumeAgent(mirror.client)
 from auth_github import router as auth_router, oauth2_scheme, get_current_user
 
 app.include_router(auth_router)
+# Remove router's /me to provide complete player profile with intro_seen
+app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", None) != "/me"]
+
+@app.get("/me")
+def get_me_profile(current_user: dict = Depends(get_current_user)):
+    user_me = database.get_user_me(current_user["id"])
+    if not user_me:
+        raise HTTPException(status_code=404, detail="Cadet profile not found")
+    return user_me
+
 
 # --- Foundry API Models & Endpoints ---
 # --- Foundry API Models & Endpoints ---
@@ -234,6 +244,11 @@ def get_schedule_endpoint(current_user: dict = Depends(get_current_user)):
 @app.get("/profile/skill-tree")
 def get_skill_tree_endpoint(current_user: dict = Depends(get_current_user)):
     return database.get_profile_skill_tree(current_user["id"])
+
+@app.post("/profile/intro-seen")
+def mark_intro_seen_endpoint(current_user: dict = Depends(get_current_user)):
+    database.mark_intro_seen(current_user["id"])
+    return {"status": "ok", "intro_seen": True}
 
 class UpdateProjectsRequest(BaseModel):
     projects: list

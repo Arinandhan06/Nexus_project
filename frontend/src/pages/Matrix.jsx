@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Radar,
@@ -30,6 +30,7 @@ import {
   Table as TableIcon
 } from "lucide-react";
 import api from "../lib/api";
+import { NexusPanel, NexusButton, StatBadge, GlitchText } from "../components/nexus";
 
 const CATEGORY_ICONS = {
   "Data Structures & Algorithms": Activity,
@@ -40,6 +41,7 @@ const CATEGORY_ICONS = {
 };
 
 export default function Matrix({ currentUser }) {
+  const navigate = useNavigate();
   const [matrix, setMatrix] = useState({ dsa: 0, system_design: 0, cleanliness: 0 });
   const [skillTree, setSkillTree] = useState({});
   const [weaknesses, setWeaknesses] = useState([]);
@@ -144,35 +146,43 @@ export default function Matrix({ currentUser }) {
         {/* Hero Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-zinc-800">
           <div>
-            <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono uppercase tracking-widest mb-1">
+            <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono uppercase tracking-widest mb-1">
               <Terminal size={14} />
-              <span>NEXUS Readiness Matrix // Phase 2</span>
+              <span>NEXUS Readiness Matrix // Phase 2 Calibration</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
-              JOB-READINESS MATRIX & 30-DAY TRIAL
-            </h1>
-            <p className="text-sm text-zinc-400 mt-1 max-w-2xl font-mono">
+            <GlitchText
+              text="JOB-READINESS MATRIX & 30-DAY TRIAL"
+              className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white"
+            />
+            <p className="text-sm text-zinc-400 mt-2 max-w-2xl font-mono">
               Calibrated from candidate dossier. Resume scores are capped at 60/100 until proven in live Chamber trials.
             </p>
           </div>
 
-          <Link
-            to="/chambers"
-            className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl font-mono text-xs uppercase tracking-wider font-bold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-[0_0_25px_rgba(16,185,129,0.35)] transition-all shrink-0 cursor-pointer"
+          <NexusButton
+            variant="cyan"
+            size="lg"
+            icon={ArrowRight}
+            iconPosition="right"
+            onClick={() => navigate("/chambers")}
+            className="shrink-0"
           >
-            <span>Enter Chamber {currentChamber}</span>
-            <ArrowRight size={16} />
-          </Link>
+            Enter Chamber {currentChamber}
+          </NexusButton>
         </div>
 
         {/* Top Grid: Radar Chart + Accessible Table + Weaknesses */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
           {/* Left Column: Radar Chart Card (7 cols) */}
-          <div className="lg:col-span-7 bg-zinc-950/80 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-[0_0_40px_rgba(16,185,129,0.1)]">
+          <NexusPanel
+            variant="cyan"
+            glow={true}
+            className="lg:col-span-7"
+          >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
                   <Activity size={20} />
                 </div>
                 <div>
@@ -189,7 +199,7 @@ export default function Matrix({ currentUser }) {
               <button
                 type="button"
                 onClick={() => setShowTableFallback((prev) => !prev)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-400 hover:text-emerald-400 transition-colors font-mono cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-400 hover:text-cyan-400 transition-colors font-mono cursor-pointer"
                 aria-label="Toggle accessible score table view"
               >
                 <TableIcon size={14} />
@@ -217,8 +227,8 @@ export default function Matrix({ currentUser }) {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
                           return (
-                            <div className="bg-zinc-900/95 border border-emerald-500/50 p-3 rounded-xl shadow-xl text-xs font-mono">
-                              <p className="font-semibold text-emerald-400">{data.subject}</p>
+                            <div className="bg-zinc-900/95 border border-cyan-500/50 p-3 rounded-xl shadow-xl text-xs font-mono">
+                              <p className="font-semibold text-cyan-400">{data.subject}</p>
                               <p className="text-white mt-1">Calibrated Score: <span className="font-bold">{data.score}</span> / 60</p>
                               <p className="text-zinc-500 text-[10px]">Resume Cap: 60/100</p>
                             </div>
@@ -230,8 +240,8 @@ export default function Matrix({ currentUser }) {
                     <Radar
                       name="Readiness Score"
                       dataKey="score"
-                      stroke="#10b981"
-                      fill="#10b981"
+                      stroke="#22d3ee"
+                      fill="#22d3ee"
                       fillOpacity={0.45}
                     />
                   </RadarChart>
@@ -253,19 +263,19 @@ export default function Matrix({ currentUser }) {
                   <tbody className="divide-y divide-zinc-800/60">
                     <tr>
                       <td className="py-3 px-4 font-semibold text-white">Data Structures & Algorithms</td>
-                      <td className="py-3 px-4 text-emerald-400 font-bold">{matrix.dsa} / 100</td>
+                      <td className="py-3 px-4 text-cyan-400 font-bold">{matrix.dsa} / 100</td>
                       <td className="py-3 px-4 text-zinc-400">60 max</td>
                       <td className="py-3 px-4 text-cyan-400">Calibrated</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-semibold text-white">System Design</td>
-                      <td className="py-3 px-4 text-emerald-400 font-bold">{matrix.system_design} / 100</td>
+                      <td className="py-3 px-4 text-cyan-400 font-bold">{matrix.system_design} / 100</td>
                       <td className="py-3 px-4 text-zinc-400">60 max</td>
                       <td className="py-3 px-4 text-cyan-400">Calibrated</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-semibold text-white">Code Cleanliness</td>
-                      <td className="py-3 px-4 text-emerald-400 font-bold">{matrix.cleanliness} / 100</td>
+                      <td className="py-3 px-4 text-cyan-400 font-bold">{matrix.cleanliness} / 100</td>
                       <td className="py-3 px-4 text-zinc-400">60 max</td>
                       <td className="py-3 px-4 text-cyan-400">Calibrated</td>
                     </tr>
@@ -278,7 +288,7 @@ export default function Matrix({ currentUser }) {
             <div className="grid grid-cols-3 gap-3 pt-6 border-t border-zinc-800/80 text-center font-mono">
               <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
                 <p className="text-[10px] text-zinc-500 uppercase">DSA Score</p>
-                <p className="text-xl font-bold text-emerald-400 mt-0.5">{matrix.dsa}<span className="text-xs text-zinc-600">/60</span></p>
+                <p className="text-xl font-bold text-cyan-400 mt-0.5">{matrix.dsa}<span className="text-xs text-zinc-600">/60</span></p>
               </div>
               <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
                 <p className="text-[10px] text-zinc-500 uppercase">System Design</p>
@@ -286,13 +296,17 @@ export default function Matrix({ currentUser }) {
               </div>
               <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
                 <p className="text-[10px] text-zinc-500 uppercase">Cleanliness</p>
-                <p className="text-xl font-bold text-teal-400 mt-0.5">{matrix.cleanliness}<span className="text-xs text-zinc-600">/60</span></p>
+                <p className="text-xl font-bold text-cyan-400 mt-0.5">{matrix.cleanliness}<span className="text-xs text-zinc-600">/60</span></p>
               </div>
             </div>
-          </div>
+          </NexusPanel>
 
           {/* Right Column: Targeted Weaknesses Card (5 cols) */}
-          <div className="lg:col-span-5 bg-zinc-950/80 border border-zinc-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl space-y-6">
+          <NexusPanel
+            variant="amber"
+            glow={true}
+            className="lg:col-span-5 space-y-6"
+          >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-950/50 border border-amber-500/40 flex items-center justify-center text-amber-400">
                 <Crosshair size={20} />
@@ -337,8 +351,8 @@ export default function Matrix({ currentUser }) {
               )}
             </div>
 
-            <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-500/20 text-xs font-mono text-zinc-400 space-y-1">
-              <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+            <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/20 text-xs font-mono text-zinc-400 space-y-1">
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
                 <Sparkles size={14} />
                 <span>NEXUS Calibration Note</span>
               </div>
@@ -346,7 +360,7 @@ export default function Matrix({ currentUser }) {
                 The 2 lowest-scoring dimensions receive double the Chamber training days (10 days each vs 5 days) to maximize mastery before the Chamber 6 Final Interview.
               </p>
             </div>
-          </div>
+          </NexusPanel>
         </div>
 
         {/* Skill Tree Section: Expandable Category Cards */}
@@ -373,10 +387,10 @@ export default function Matrix({ currentUser }) {
               const isExpanded = expandedCategories[category];
 
               return (
-                <motion.div
+                <NexusPanel
                   key={category}
-                  layout
-                  className="bg-zinc-950/80 border border-zinc-800 hover:border-emerald-500/40 rounded-2xl p-5 backdrop-blur-xl transition-all"
+                  variant="neutral"
+                  className="hover:border-cyan-500/40 transition-all"
                 >
                   <button
                     type="button"
@@ -385,11 +399,11 @@ export default function Matrix({ currentUser }) {
                     aria-expanded={isExpanded}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-950/50 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                      <div className="w-9 h-9 rounded-xl bg-cyan-950/50 border border-cyan-500/30 flex items-center justify-center text-cyan-400 group-hover:scale-105 transition-transform">
                         <IconComponent size={18} />
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-zinc-200 group-hover:text-emerald-300 transition-colors">
+                        <h3 className="text-sm font-bold text-zinc-200 group-hover:text-cyan-300 transition-colors">
                           {category}
                         </h3>
                         <p className="text-[11px] text-zinc-500 font-mono">
@@ -397,7 +411,7 @@ export default function Matrix({ currentUser }) {
                         </p>
                       </div>
                     </div>
-                    <div className="text-zinc-500 group-hover:text-emerald-400 transition-colors">
+                    <div className="text-zinc-500 group-hover:text-cyan-400 transition-colors">
                       {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </div>
                   </button>
@@ -414,11 +428,11 @@ export default function Matrix({ currentUser }) {
                           <div key={sIdx} className="space-y-1">
                             <div className="flex items-center justify-between text-xs">
                               <span className="font-semibold text-zinc-300">{skill.name}</span>
-                              <span className="font-mono text-emerald-400 font-bold">{skill.level}%</span>
+                              <span className="font-mono text-cyan-400 font-bold">{skill.level}%</span>
                             </div>
                             <div className="w-full bg-zinc-800/80 rounded-full h-1.5 overflow-hidden">
                               <div
-                                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
+                                className="bg-gradient-to-r from-cyan-500 to-teal-400 h-full rounded-full transition-all duration-500"
                                 style={{ width: `${Math.min(100, Math.max(0, skill.level))}%` }}
                               />
                             </div>
@@ -432,7 +446,7 @@ export default function Matrix({ currentUser }) {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
+                </NexusPanel>
               );
             })}
           </div>
@@ -441,7 +455,7 @@ export default function Matrix({ currentUser }) {
         {/* 30-Day Chamber Schedule Timeline */}
         <div className="space-y-6 pt-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-950/60 border border-purple-500/40 flex items-center justify-center text-purple-400">
+            <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
               <Calendar size={20} />
             </div>
             <div>
@@ -463,21 +477,19 @@ export default function Matrix({ currentUser }) {
               const title = chamberTitles[chamberNo] || `Chamber ${chamberNo}`;
 
               return (
-                <div
+                <NexusPanel
                   key={chamberNo}
-                  className={`rounded-3xl border transition-all duration-200 overflow-hidden ${
-                    isUnlocked
-                      ? "bg-zinc-950/90 border-emerald-500/40 shadow-[0_0_30px_rgba(16,185,129,0.08)]"
-                      : "bg-zinc-950/50 border-zinc-800/80 opacity-80"
-                  }`}
+                  variant={isUnlocked ? "cyan" : "neutral"}
+                  glow={isUnlocked}
+                  className={!isUnlocked ? "opacity-75" : ""}
                 >
                   {/* Chamber Header Banner */}
-                  <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start sm:items-center gap-4">
                       <div
                         className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${
                           isUnlocked
-                            ? "bg-emerald-950/70 border-emerald-500/50 text-emerald-400"
+                            ? "bg-cyan-950/70 border-cyan-500/50 text-cyan-400"
                             : "bg-zinc-900 border-zinc-800 text-zinc-500"
                         }`}
                       >
@@ -486,15 +498,12 @@ export default function Matrix({ currentUser }) {
 
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <span
-                            className={`text-[10px] font-mono px-2 py-0.5 rounded-full uppercase tracking-wider font-bold border ${
-                              isUnlocked
-                                ? "bg-emerald-950 text-emerald-300 border-emerald-500/40"
-                                : "bg-zinc-900 text-zinc-500 border-zinc-800"
-                            }`}
-                          >
-                            {isUnlocked ? "Chamber Unlocked" : "Chamber Locked"}
-                          </span>
+                          <StatBadge
+                            label="CHAMBER"
+                            value={isUnlocked ? "UNLOCKED" : "LOCKED"}
+                            variant={isUnlocked ? "cyan" : "neutral"}
+                            size="sm"
+                          />
                           <span className="text-xs font-mono text-zinc-500">
                             {days.length > 0 ? `Days ${days[0].day} - ${days[days.length - 1].day}` : ""}
                           </span>
@@ -507,12 +516,13 @@ export default function Matrix({ currentUser }) {
 
                     <div className="flex items-center gap-3 self-end sm:self-center">
                       {isUnlocked && (
-                        <Link
-                          to={`/chambers`}
-                          className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 text-xs font-mono uppercase font-bold transition-colors cursor-pointer"
+                        <NexusButton
+                          variant="cyan"
+                          size="sm"
+                          onClick={() => navigate("/chambers")}
                         >
                           Enter
-                        </Link>
+                        </NexusButton>
                       )}
                       <button
                         type="button"
@@ -527,9 +537,9 @@ export default function Matrix({ currentUser }) {
 
                   {/* Chamber Taunt Callout */}
                   {taunt && (
-                    <div className="px-5 sm:px-6 pb-4">
-                      <div className="p-3.5 rounded-xl bg-zinc-900/60 border border-zinc-800 text-xs font-mono text-zinc-300 flex items-start gap-2.5">
-                        <Terminal size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="mt-4">
+                      <div className="p-3.5 rounded-xl bg-zinc-900/60 border border-red-500/30 text-xs font-mono text-zinc-300 flex items-start gap-2.5">
+                        <Terminal size={16} className="text-red-400 shrink-0 mt-0.5" />
                         <p className="italic text-zinc-300/90">&ldquo;{taunt}&rdquo;</p>
                       </div>
                     </div>
@@ -542,16 +552,16 @@ export default function Matrix({ currentUser }) {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="px-5 sm:px-6 pb-6 border-t border-zinc-800/80 pt-4"
+                        className="border-t border-zinc-800/80 pt-4 mt-4"
                       >
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           {days.map((dayItem) => (
                             <div
                               key={dayItem.day}
-                              className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/60 text-xs font-mono space-y-1 hover:border-emerald-500/30 transition-colors"
+                              className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/60 text-xs font-mono space-y-1 hover:border-cyan-500/30 transition-colors"
                             >
                               <div className="flex items-center justify-between text-zinc-500">
-                                <span className="font-bold text-emerald-400">Day {dayItem.day}</span>
+                                <span className="font-bold text-cyan-400">Day {dayItem.day}</span>
                                 <span>Chamber {dayItem.chamber_no}</span>
                               </div>
                               <p className="font-semibold text-zinc-200 truncate">
@@ -568,7 +578,7 @@ export default function Matrix({ currentUser }) {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </div>
+                </NexusPanel>
               );
             })}
           </div>

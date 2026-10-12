@@ -8,14 +8,24 @@ import Safehouse from "./pages/Safehouse";
 import Chambers from "./pages/Chambers";
 import Matrix from "./pages/Matrix";
 import UploadResume from "./pages/UploadResume";
+import Intro from "./pages/Intro";
 import Profile from "./pages/Profile";
 import api from "./lib/api";
 
-function AuthenticatedApp({ currentUser, onLogout, onOnboardingComplete }) {
+function AuthenticatedApp({ currentUser, onLogout, onOnboardingComplete, onIntroComplete }) {
   const location = useLocation();
 
   if (!currentUser?.onboarding_complete && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
+  }
+
+  if (currentUser?.onboarding_complete && !currentUser?.intro_seen && location.pathname !== "/intro") {
+    return <Navigate to="/intro" replace />;
+  }
+
+  // Full-screen cinematic intro mode
+  if (location.pathname === "/intro") {
+    return <Intro onIntroComplete={onIntroComplete} />;
   }
 
   return (
@@ -35,6 +45,7 @@ function AuthenticatedApp({ currentUser, onLogout, onOnboardingComplete }) {
             <Route path="/chambers" element={<Chambers />} />
             <Route path="/matrix" element={<Matrix currentUser={currentUser} />} />
             <Route path="/profile" element={<Profile currentUser={currentUser} />} />
+            <Route path="/intro" element={<Intro onIntroComplete={onIntroComplete} />} />
             <Route path="/onboarding" element={<UploadResume onOnboardingComplete={onOnboardingComplete} />} />
             <Route path="/upload-resume" element={<Navigate to="/onboarding" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -126,6 +137,10 @@ export default function App() {
     setCurrentUser((prev) => (prev ? { ...prev, onboarding_complete: true } : prev));
   };
 
+  const handleIntroComplete = () => {
+    setCurrentUser((prev) => (prev ? { ...prev, intro_seen: true } : prev));
+  };
+
   const handleLogout = async () => {
     try {
       await api.post("/auth/logout");
@@ -172,6 +187,7 @@ export default function App() {
                 currentUser={currentUser}
                 onLogout={handleLogout}
                 onOnboardingComplete={handleOnboardingComplete}
+                onIntroComplete={handleIntroComplete}
               />
             ) : (
               <Navigate to="/login" replace />

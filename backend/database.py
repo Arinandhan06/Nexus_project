@@ -127,12 +127,18 @@ def init_db():
             system_design_score INTEGER DEFAULT 0,
             cleanliness_score INTEGER DEFAULT 0,
             onboarding_complete BOOLEAN DEFAULT 0,
+            intro_seen BOOLEAN DEFAULT 0,
             schedule_json TEXT,
             skill_tree_json TEXT,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
+
+    try:
+        cursor.execute("ALTER TABLE player_profile ADD COLUMN intro_seen BOOLEAN DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
 
     # Chamber Attempts Table
     cursor.execute('''
@@ -1022,7 +1028,8 @@ def get_user_me(user_id):
                COALESCE(p.current_streak, 0) AS current_streak,
                COALESCE(p.best_streak, 0) AS best_streak,
                COALESCE(p.current_chamber, 1) AS current_chamber,
-               COALESCE(p.onboarding_complete, 0) AS onboarding_complete
+               COALESCE(p.onboarding_complete, 0) AS onboarding_complete,
+               COALESCE(p.intro_seen, 0) AS intro_seen
         FROM users u
         LEFT JOIN player_profile p ON u.id = p.user_id
         WHERE u.id = ?
@@ -1033,7 +1040,20 @@ def get_user_me(user_id):
         return None
     data = dict(row)
     data["onboarding_complete"] = bool(data["onboarding_complete"])
+    data["intro_seen"] = bool(data.get("intro_seen", 0))
     return data
+
+def mark_intro_seen(user_id: int):
+    """Sets intro_seen to 1 for the user's player_profile."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE player_profile
+        SET intro_seen = 1, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+    """, (user_id,))
+    conn.commit()
+    conn.close()
 
 def get_user_tree_stats(user_id):
     """Calculates trees grown for a specific user."""
