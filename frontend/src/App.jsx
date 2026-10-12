@@ -130,6 +130,7 @@ export default function App() {
                       <Route path="/chambers" element={<Chambers />} />
                       <Route path="/matrix" element={<Matrix />} />
                       <Route path="/profile" element={<Profile currentUser={currentUser} />} />
+                      <Route path="/onboarding" element={<Navigate to="/" replace />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </main>

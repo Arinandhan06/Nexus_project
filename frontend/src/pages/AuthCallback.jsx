@@ -32,21 +32,21 @@ export default function AuthCallback() {
         // Store token in session storage
         sessionStorage.setItem("authToken", token);
 
-        // Verify token with backend /me endpoint
-        const response = await api.get("/me");
+        // Verify token with backend /me endpoint with explicit Bearer header
+        const response = await api.get("/me", {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
         const user = response.data;
 
         setStatus("success");
 
-        // Small timeout for visual confirmation of awakening
+        // Navigate cleanly to / (or /onboarding if false)
         setTimeout(() => {
-          if (user.onboarding_complete === false) {
-            // If onboarding page route doesn't exist yet, fall back to /
-            navigate("/onboarding", { replace: true });
-          } else {
-            navigate("/", { replace: true });
-          }
-        }, 500);
+          const target = user.onboarding_complete === false ? "/onboarding" : "/";
+          window.location.href = target;
+        }, 300);
       } catch (err) {
         console.error("Auth callback verification error:", err);
         sessionStorage.removeItem("authToken");
