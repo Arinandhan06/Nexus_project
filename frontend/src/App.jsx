@@ -10,49 +10,72 @@ import Matrix from "./pages/Matrix";
 import Profile from "./pages/Profile";
 import api from "./lib/api";
 
+function AuthenticatedApp({ currentUser, onLogout }) {
+  return (
+    <div className="flex h-screen overflow-hidden bg-transparent text-gray-200 relative">
+      {/* Global Background Layer */}
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 bg-[url('/background.jpg')] bg-cover bg-center bg-no-repeat" />
+        <div className="absolute inset-0 bg-black/60" />
+      </div>
+
+      <div className="relative z-10 flex h-full w-full">
+        <Sidebar onLogout={onLogout} />
+        <main className="flex-1 overflow-y-auto relative" role="main">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/safehouse" element={<Safehouse />} />
+            <Route path="/chambers" element={<Chambers />} />
+            <Route path="/matrix" element={<Matrix />} />
+            <Route path="/profile" element={<Profile currentUser={currentUser} />} />
+            <Route path="/onboarding" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [authChecking, setAuthChecking] = useState(true);
+  const [authChecking, setAuthChecking] = useState(() => {
+    return Boolean(sessionStorage.getItem("authToken"));
+  });
 
-  // Validate session against /me
   useEffect(() => {
-    let active = true;
+    const token = sessionStorage.getItem("authToken");
+    if (!token) {
+      setCurrentUser(null);
+      setAuthChecking(false);
+      return;
+    }
 
-    const verifySession = async () => {
-      const token = sessionStorage.getItem("authToken");
-      if (!token) {
-        if (active) {
-          setCurrentUser(null);
+    let isMounted = true;
+    api
+      .get("/me")
+      .then((res) => {
+        if (isMounted) {
+          setCurrentUser(res.data);
           setAuthChecking(false);
         }
-        return;
-      }
-
-      try {
-        const response = await api.get("/me");
-        if (active) {
-          setCurrentUser(response.data);
-          setAuthChecking(false);
-        }
-      } catch (err) {
-        if (active) {
-          console.warn("Session check failed (401 or invalid token):", err.message);
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.warn("Session check rejected:", err.message);
           sessionStorage.removeItem("authToken");
           setCurrentUser(null);
           setAuthChecking(false);
         }
-      }
-    };
+      });
 
-    verifySession();
     return () => {
-      active = false;
+      isMounted = false;
     };
   }, []);
 
-  // Activity Tracking Logic
+  // Activity Tracking
   const activityTimerRef = useRef(0);
-
   useEffect(() => {
     if (!currentUser) return;
 
@@ -83,62 +106,46 @@ export default function App() {
     } finally {
       sessionStorage.clear();
       setCurrentUser(null);
-      window.location.href = "/";
+      window.location.href = "/login";
     }
   };
-
-  if (authChecking) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-black text-emerald-400 font-mono">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs tracking-widest uppercase">Connecting to NEXUS Core...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <Router>
       <Routes>
-        {/* OAuth Callback route must always be reachable */}
+        {/* OAuth Callback route always accessible */}
         <Route path="/auth/callback" element={<AuthCallback />} />
 
-        {/* Public or Protected tree */}
-        {!currentUser ? (
-          <>
-            <Route path="/login" element={<LoginSignup />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </>
-        ) : (
-          <Route
-            path="*"
-            element={
-              <div className="flex h-screen overflow-hidden bg-transparent text-gray-200 relative">
-                {/* Global Background Layer */}
-                <div className="fixed inset-0 z-0">
-                  <div className="absolute inset-0 bg-[url('/background.jpg')] bg-cover bg-center bg-no-repeat" />
-                  <div className="absolute inset-0 bg-black/60" />
-                </div>
+        {/* Public Login Route */}
+        <Route
+          path="/login"
+          element={
+            currentUser ? (
+              <Navigate to="/" replace />
+            ) : (
+              <LoginSignup />
+            )
+          }
+        />
 
-                <div className="relative z-10 flex h-full w-full">
-                  <Sidebar onLogout={handleLogout} />
-                  <main className="flex-1 overflow-y-auto relative" role="main">
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/safehouse" element={<Safehouse />} />
-                      <Route path="/chambers" element={<Chambers />} />
-                      <Route path="/matrix" element={<Matrix />} />
-                      <Route path="/profile" element={<Profile currentUser={currentUser} />} />
-                      <Route path="/onboarding" element={<Navigate to="/" replace />} />
-                      <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
-                  </main>
+        {/* Protected Application Routes */}
+        <Route
+          path="/*"
+          element={
+            authChecking ? (
+              <div className="min-h-screen w-full flex items-center justify-center bg-black text-emerald-400 font-mono">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs tracking-widest uppercase">Connecting to NEXUS Core...</p>
                 </div>
               </div>
-            }
-          />
-        )}
+            ) : currentUser ? (
+              <AuthenticatedApp currentUser={currentUser} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
       </Routes>
     </Router>
   );
