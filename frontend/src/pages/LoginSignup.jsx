@@ -14,7 +14,7 @@ export default function LoginSignup() {
     try {
       const response = await api.get("/auth/github/login");
       if (response.data && response.data.url) {
-        window.location.href = response.data.url;
+        window.location.assign(response.data.url);
       } else {
         throw new Error("No authorization URL received from NEXUS server.");
       }

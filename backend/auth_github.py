@@ -90,11 +90,14 @@ def github_login():
     state = secrets.token_hex(24)
     database.save_oauth_state(state)
 
-    scope = "public_repo read:user"
-    github_auth_url = (
-        f"https://github.com/login/oauth/authorize?"
-        f"client_id={client_id}&redirect_uri={redirect_uri}&scope={scope}&state={state}"
-    )
+    from urllib.parse import urlencode
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": "public_repo read:user",
+        "state": state
+    }
+    github_auth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
     return {"url": github_auth_url}
 
 @router.get("/auth/github/callback", dependencies=[Depends(check_rate_limit)])
