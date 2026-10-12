@@ -1,389 +1,125 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import {
-  Mail,
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  Sparkles
-} from "lucide-react";
+import { motion } from "framer-motion";
+import { Terminal, AlertTriangle, ArrowRight, ShieldCheck, Github } from "lucide-react";
 import Galaxy from "../components/Galaxy";
 import api from "../lib/api";
 
-export default function LoginSignup({ onLogin }) {
-  const [isLogin, setIsLogin] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: ""
-  });
-  const navigate = useNavigate();
+export default function LoginSignup() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Simulate authentication - in a real app, you'd make an API call here
-    // Updated to call backend
-    if (!isLogin && formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match!");
-      return;
-    }
-
+  const handleGitHubAuth = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      if (isLogin) {
-        const response = await api.post("/login", {
-          email: formData.email,
-          password: formData.password
-        });
-
-        const data = response.data;
-
-        if (data.token) {
-          sessionStorage.setItem("authToken", data.token);
-          sessionStorage.setItem("userName", data.name);
-          sessionStorage.setItem("userEmail", data.email);
-
-          if (onLogin) onLogin();
-          else navigate("/");
-        }
+      const response = await api.get("/auth/github/login");
+      if (response.data && response.data.url) {
+        window.location.href = response.data.url;
       } else {
-        await api.post("/auth/signup", {
-          name: formData.name,
-          email: formData.email,
-          password: formData.password
-        });
-
-        alert("Account created successfully! Please sign in.");
-        setIsLogin(true);
+        throw new Error("No authorization URL received from NEXUS server.");
       }
-    } catch (error) {
-      console.error("Auth error:", error);
-      const msg = error.response?.data?.detail || error.message || "Authentication failed";
-      alert(msg);
+    } catch (err) {
+      console.error("GitHub auth error:", err);
+      setError(
+        err.response?.data?.detail ||
+        err.message ||
+        "Failed to initialize GitHub OAuth bridge. Ensure backend is running."
+      );
+      setLoading(false);
     }
-  };
-
-  const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-black">
-      {/* Galaxy Background */}
-      <div className="absolute inset-0 z-0">
-        <Galaxy
-          starSpeed={0.5}
-          density={1}
-          hueShift={140}
-          speed={1}
-          glowIntensity={0.3}
-          saturation={0}
-          mouseRepulsion={true}
-          repulsionStrength={2}
-          twinkleIntensity={0.3}
-          rotationSpeed={0.1}
-        />
+    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-black text-white px-4 py-8">
+      {/* Background Ambience */}
+      <div className="absolute inset-0 opacity-40 pointer-events-none">
+        <Galaxy />
       </div>
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black/95 pointer-events-none" />
 
-      <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="w-full max-w-md"
-        >
-          {/* Logo and Title */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-center mb-8"
-          >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="inline-block mb-4"
-            >
-              <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
-                <Sparkles size={32} className="text-white" />
-              </div>
-            </motion.div>
-            <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 bg-clip-text text-transparent mb-2">
-              NEXUS: CODE AWAKENING
-            </h1>
-            <p className="text-gray-400 text-sm">Enter the coding gauntlet</p>
-          </motion.div>
-
-          {/* Form Container with Animated Gradient Border */}
-          <div className="relative group rounded-2xl p-[1px] overflow-hidden">
-            {/* Animated Moving Border - Premium Effect */}
-            <div className="absolute inset-[-1px] rounded-2xl overflow-hidden z-0">
-              <div className="absolute inset-[-200%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#00000000_50%,#10b981_50%,#00000000)] opacity-50 blur-sm" />
-              <div className="absolute inset-[-200%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#00000000_50%,#3b82f6_50%,#00000000)] opacity-30 mix-blend-overlay" style={{ animationDelay: '-2s' }} />
-            </div>
-
-            {/* Inner Card Background with Border Mask */}
-            <div className="absolute inset-[1px] rounded-2xl bg-black/40 z-0" />
-
-            <motion.div
-              layout
-              className="relative bg-black/20 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 overflow-hidden"
-            >
-              {/* Tab Switcher */}
-              <div className="flex bg-white/5 p-1 m-2 rounded-xl">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setIsLogin(true)}
-                  className={`flex-1 py-3 px-6 text-sm font-medium rounded-lg transition-all duration-300 ${isLogin
-                    ? "bg-white/10 text-white shadow-sm"
-                    : "text-gray-400 hover:text-white"
-                    }`}
-                >
-                  Sign In
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setIsLogin(false)}
-                  className={`flex-1 py-3 px-6 text-sm font-medium rounded-lg transition-all duration-300 ${!isLogin
-                    ? "bg-white/10 text-white shadow-sm"
-                    : "text-gray-400 hover:text-white"
-                    }`}
-                >
-                  Sign Up
-                </motion.button>
-              </div>
-
-              <div className="p-8 pt-4">
-                {/* Social Login */}
-                <button
-                  onClick={() => alert("Google Login is coming soon! Please use Email/Password for now.")}
-                  type="button"
-                  className="w-full bg-white text-black py-3 px-4 rounded-lg font-medium hover:bg-gray-100 transition-colors flex items-center justify-center gap-3 mb-6"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26.81-.58z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  Continue with Google
-                </button>
-
-                <div className="relative mb-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/10"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-transparent text-gray-500 bg-[#000]">Or continue with email</span>
-                  </div>
-                </div>
-
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <AnimatePresence mode="wait">
-                    {isLogin ? (
-                      <motion.div
-                        key="login"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        transition={{ duration: 0.3 }}
-                        className="space-y-4"
-                      >
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Email Address
-                          </label>
-                          <div className="relative group">
-                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={20} />
-                            <input
-                              type="email"
-                              name="email"
-                              value={formData.email}
-                              onChange={handleInputChange}
-                              className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                              placeholder="Enter your email"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Password
-                          </label>
-                          <div className="relative group">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={20} />
-                            <input
-                              type={showPassword ? "text" : "password"}
-                              name="password"
-                              value={formData.password}
-                              onChange={handleInputChange}
-                              className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                              placeholder="Enter your password"
-                              required
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                            >
-                              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="signup"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.3 }}
-                        className="space-y-4"
-                      >
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Full Name
-                          </label>
-                          <div className="relative group">
-                            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={20} />
-                            <input
-                              type="text"
-                              name="name"
-                              value={formData.name}
-                              onChange={handleInputChange}
-                              className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                              placeholder="Enter your full name"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Email Address
-                          </label>
-                          <div className="relative group">
-                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={20} />
-                            <input
-                              type="email"
-                              name="email"
-                              value={formData.email}
-                              onChange={handleInputChange}
-                              className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                              placeholder="Enter your email"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Password
-                          </label>
-                          <div className="relative group">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={20} />
-                            <input
-                              type={showPassword ? "text" : "password"}
-                              name="password"
-                              value={formData.password}
-                              onChange={handleInputChange}
-                              className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                              placeholder="Create a password"
-                              required
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                            >
-                              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Confirm Password
-                          </label>
-                          <div className="relative group">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 group-focus-within:text-green-400 transition-colors" size={20} />
-                            <input
-                              type="password"
-                              name="confirmPassword"
-                              value={formData.confirmPassword}
-                              onChange={handleInputChange}
-                              className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                              placeholder="Confirm your password"
-                              required
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Submit Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-6 rounded-lg font-medium hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 group"
-                  >
-                    <span>{isLogin ? "Sign In with Email" : "Create Account"}</span>
-                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                  </motion.button>
-
-                  {/* Additional Links */}
-                  <div className="text-center">
-                    <button
-                      type="button"
-                      onClick={() => setIsLogin(!isLogin)}
-                      className="text-sm text-gray-500 hover:text-green-400 transition-colors"
-                    >
-                      {isLogin ? "Forgot your password?" : "Already have an account?"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </motion.div>
+      {/* Main Login Card */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="relative z-10 w-full max-w-md bg-zinc-950/90 border border-emerald-500/30 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(16,185,129,0.15)] backdrop-blur-xl"
+      >
+        {/* Header / Brand */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 mb-4 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+            <Terminal size={28} />
           </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-wider bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
+            NEXUS: CODE AWAKENING
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-400 mt-2 font-mono">
+            [ACCESS PROTOCOL // 30-DAY TECHNICAL TRIAL]
+          </p>
+        </div>
 
+        {/* Narrative / Context */}
+        <div className="bg-zinc-900/70 border border-zinc-800 rounded-xl p-4 mb-6 text-xs text-zinc-300 font-mono space-y-1">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <ShieldCheck size={14} />
+            <span className="font-semibold uppercase tracking-wider">Adversarial Evaluation Node</span>
+          </div>
+          <p className="text-zinc-400">
+            Authentication delegates through GitHub. Your public repositories and coding metadata will calibrate Chamber difficulty.
+          </p>
+        </div>
 
-          {/* Footer */}
+        {/* Error State */}
+        {error && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="text-center mt-8 text-gray-500 text-sm"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 rounded-xl bg-red-950/50 border border-red-500/50 text-red-300 text-xs sm:text-sm flex items-start gap-3"
+            role="alert"
           >
-            <p>🌱 Nurture your career growth with Career AI</p>
+            <AlertTriangle size={18} className="shrink-0 text-red-400 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-red-200">Connection Terminated</p>
+              <p className="mt-1 text-red-300/90">{error}</p>
+              <button
+                type="button"
+                onClick={handleGitHubAuth}
+                className="mt-2 text-xs font-semibold underline hover:text-red-100 transition-colors cursor-pointer"
+              >
+                Retry handshake
+              </button>
+            </div>
           </motion.div>
-        </motion.div>
-      </div>
+        )}
+
+        {/* Single Primary Action: Authenticate with GitHub */}
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={handleGitHubAuth}
+            disabled={loading}
+            aria-label="Authenticate with GitHub"
+            className="w-full flex items-center justify-center gap-3 py-3.5 px-6 rounded-xl font-semibold text-sm tracking-wide bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-zinc-950 shadow-[0_0_25px_rgba(16,185,129,0.35)] hover:shadow-[0_0_35px_rgba(16,185,129,0.5)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-zinc-950"
+          >
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+                <span>Negotiating Quantum Token...</span>
+              </>
+            ) : (
+              <>
+                <Github size={20} className="fill-current" />
+                <span>Authenticate with GitHub</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Footer Notice */}
+        <div className="mt-8 text-center text-[11px] text-zinc-500 font-mono">
+          NEXUS is watching. Session encryption: Fernet AES-128-CBC.
+        </div>
+      </motion.div>
     </div>
   );
 }

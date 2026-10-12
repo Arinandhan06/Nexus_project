@@ -5,8 +5,9 @@ import TopBar from "../components/TopBar";
 import ActivityHeatmap from "../components/ActivityHeatmap";
 import api from "../lib/api";
 
-export default function Profile() {
+export default function Profile({ currentUser }) {
   const [profileData, setProfileData] = useState(null);
+  const [meData, setMeData] = useState(currentUser || null);
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -20,19 +21,23 @@ export default function Profile() {
     const token = sessionStorage.getItem("authToken");
     if (!token) {
       setLoading(false);
-      // navigate("/login");
       return;
     }
     try {
-      const res = await api.get("/profile");
-      if (res.data.error) {
-        setLoading(false);
-        return;
+      const [resProfile, resMe] = await Promise.allSettled([
+        api.get("/profile"),
+        api.get("/me")
+      ]);
+
+      if (resProfile.status === "fulfilled" && !resProfile.value.data.error) {
+        setProfileData(resProfile.value.data);
+        setGoals(resProfile.value.data.goals || []);
+        setActivityData(resProfile.value.data.activity || []);
       }
 
-      setProfileData(res.data);
-      setGoals(res.data.goals || []);
-      setActivityData(res.data.activity || []);
+      if (resMe.status === "fulfilled" && resMe.value.data) {
+        setMeData(resMe.value.data);
+      }
 
       setLoading(false);
     } catch (err) {
@@ -122,43 +127,29 @@ export default function Profile() {
   };
 
   // derived user object
-  const user = profileData ? {
-    name: profileData.full_name || "Cadet X",
-    role: profileData.role || "Level 1 Scout",
-    email: profileData.email || "cadet.x@careerai.com",
-    location: profileData.location || "New York, USA",
-    joinDate: "January 2025",
-    avatar: profileData.avatar,
-    bio: profileData.bio || "Software Engineer"
-  } : {
-    name: "Cadet X",
-    role: "Level 1 Scout",
-    email: "cadet.x@careerai.com",
-    location: "New York, USA",
-    joinDate: "January 2025",
-    bio: "Software Engineer"
-  };
-
-  // Calculate stats dynamically based on real data where available
-  const getSkillCount = () => {
-    if (!profileData?.analysis?.current_skills) return "0";
-    if (typeof profileData.analysis.current_skills === 'string') {
-      return profileData.analysis.current_skills.split(',').length;
-    }
-    if (Array.isArray(profileData.analysis.current_skills)) {
-      return profileData.analysis.current_skills.length;
-    }
-    return "0";
+  const user = {
+    name: meData?.display_name || profileData?.full_name || "Cadet X",
+    username: meData?.github_username ? `@${meData.github_username}` : "@cadet",
+    role: profileData?.role || `Chamber ${meData?.current_chamber ?? 1} Cadet`,
+    email: meData?.email || profileData?.email || "cadet@nexus.ai",
+    location: profileData?.location || "NEXUS Grid",
+    joinDate: "Phase 1 Awakening",
+    avatar: meData?.avatar_url || profileData?.avatar,
+    bio: profileData?.bio || "Preparing for adversarial AI coding trials",
+    nxp: meData?.total_nxp ?? 0,
+    streak: meData?.current_streak ?? 0,
+    bestStreak: meData?.best_streak ?? 0,
+    chamber: meData?.current_chamber ?? 1,
   };
 
   const stats = [
-    { label: "Projects Active", value: profileData?.active_projects_count ?? profileData?.projects?.length ?? "0", icon: Star, color: "text-yellow-400", bg: "bg-yellow-400/10" },
-    { label: "Trees Grown", value: profileData?.trees_planted ?? "0", icon: Shield, color: "text-emerald-400", bg: "bg-emerald-400/10" },
-    { label: "Growth Stage", value: profileData?.growth_stage || "Seed", icon: BookOpen, color: "text-blue-400", bg: "bg-blue-400/10" },
+    { label: "Nexus Points (NXP)", value: `${user.nxp} NXP`, icon: Star, color: "text-emerald-400", bg: "bg-emerald-400/10" },
+    { label: "Chamber Streak", value: `${user.streak} (Best: ${user.bestStreak})`, icon: Shield, color: "text-cyan-400", bg: "bg-cyan-400/10" },
+    { label: "Active Chamber", value: `Chamber ${user.chamber}`, icon: BookOpen, color: "text-blue-400", bg: "bg-blue-400/10" },
     { label: "Goals Completed", value: goals.filter(g => g.is_done).length, icon: Award, color: "text-purple-400", bg: "bg-purple-400/10" }
   ];
 
-  if (loading) return <div className="p-10 text-white">Loading Profile...</div>;
+  if (loading) return <div className="p-10 text-white font-mono">Loading Cadet Profile...</div>;
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
@@ -174,12 +165,12 @@ export default function Profile() {
             className="relative overflow-hidden rounded-3xl bg-slate-900/50 border border-white/10 p-8 backdrop-blur-xl"
           >
             {/* Background Gradient */}
-            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-purple-500/20 blur-3xl" />
+            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-purple-500/20 blur-3xl" />
 
             <div className="relative flex flex-col md:flex-row items-center gap-8">
               {/* Avatar */}
               <div className="relative group">
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center border-4 border-slate-800 shadow-xl relative z-10 overflow-hidden">
+                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center border-4 border-emerald-500/50 shadow-xl relative z-10 overflow-hidden">
                   {user.avatar ? (
                     <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
@@ -188,7 +179,7 @@ export default function Profile() {
                 </div>
                 <button
                   onClick={handleAvatarClick}
-                  className="absolute bottom-0 right-0 p-2 bg-cyan-500 rounded-full text-white shadow-lg z-20 hover:bg-cyan-400 transition-colors cursor-pointer"
+                  className="absolute bottom-0 right-0 p-2 bg-emerald-500 rounded-full text-zinc-950 shadow-lg z-20 hover:bg-emerald-400 transition-colors cursor-pointer"
                 >
                   <Camera size={16} />
                 </button>
@@ -205,9 +196,20 @@ export default function Profile() {
               <div className="flex-1 text-center md:text-left">
                 <div className="flex flex-col md:flex-row items-center md:justify-between gap-4">
                   <div>
-                    <h1 className="text-3xl font-bold text-white mb-1">{user.name}</h1>
-                    <p className="text-cyan-400 font-medium">{user.role}</p>
-                    <p className="text-gray-400 text-sm mt-1">{user.bio}</p>
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-1">
+                      <h1 className="text-3xl font-bold text-white">{user.name}</h1>
+                      <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-400">
+                        {user.username}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-sm">
+                      <span className="text-cyan-400 font-medium">{user.role}</span>
+                      <span className="text-zinc-600">•</span>
+                      <span className="text-emerald-400 font-semibold">{user.nxp} NXP</span>
+                      <span className="text-zinc-600">•</span>
+                      <span className="text-amber-400 font-medium">🔥 {user.streak} Streak</span>
+                    </div>
+                    <p className="text-gray-400 text-sm mt-2">{user.bio}</p>
                   </div>
                   <button
                     onClick={() => setIsEditing(true)}

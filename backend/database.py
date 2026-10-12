@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+import time
 from datetime import datetime, timedelta
 
 DB_PATH = 'career_sapling.db'
@@ -39,18 +40,64 @@ def init_db():
     except sqlite3.OperationalError:
         pass
         
-    # NEW: Users Table
+    # Helper for safe column migrations
+    def ensure_column(table_name, column_name, column_def):
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        existing_cols = [row[1] for row in cursor.fetchall()]
+        if column_name not in existing_cols:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}")
+
+    # Users Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
+            github_id TEXT UNIQUE,
+            github_username TEXT,
+            avatar_url TEXT,
+            github_token_enc TEXT,
+            email TEXT UNIQUE,
+            password_hash TEXT,
             full_name TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
-    # NEW: Sessions Table for Auth
+
+    # Ensure email and password_hash are nullable if existing users table had NOT NULL constraints
+    cursor.execute("PRAGMA table_info(users)")
+    user_cols_info = cursor.fetchall()
+    needs_rebuild = any(col[1] == 'password_hash' and col[3] == 1 for col in user_cols_info)
+    if needs_rebuild:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users_nexus_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                github_id TEXT UNIQUE,
+                github_username TEXT,
+                avatar_url TEXT,
+                github_token_enc TEXT,
+                email TEXT UNIQUE,
+                password_hash TEXT,
+                full_name TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        col_names = [col[1] for col in user_cols_info]
+        common_cols = [c for c in ['id', 'email', 'password_hash', 'full_name', 'created_at', 'github_id', 'github_username', 'avatar_url', 'github_token_enc'] if c in col_names]
+        cols_str = ", ".join(common_cols)
+        cursor.execute(f"INSERT INTO users_nexus_new ({cols_str}) SELECT {cols_str} FROM users")
+        cursor.execute("DROP TABLE users")
+        cursor.execute("ALTER TABLE users_nexus_new RENAME TO users")
+    else:
+        # Safe migrations for existing users table
+        ensure_column("users", "github_id", "TEXT")
+        ensure_column("users", "github_username", "TEXT")
+        ensure_column("users", "avatar_url", "TEXT")
+        ensure_column("users", "github_token_enc", "TEXT")
+        ensure_column("users", "created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+        ensure_column("users", "full_name", "TEXT")
+
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id)")
+
+    # Sessions Table for Auth
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sessions (
             token TEXT PRIMARY KEY,
@@ -58,6 +105,55 @@ def init_db():
             expires_at DATETIME,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
+    ''')
+
+    # OAuth States Table (single-use states with 10-minute expiry)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS oauth_states (
+            state TEXT PRIMARY KEY,
+            created_at REAL
+        )
+    ''')
+
+    # Player Profile Table (user_id primary key)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS player_profile (
+            user_id INTEGER PRIMARY KEY,
+            total_nxp INTEGER DEFAULT 0,
+            current_streak INTEGER DEFAULT 0,
+            best_streak INTEGER DEFAULT 0,
+            current_chamber INTEGER DEFAULT 1,
+            dsa_score INTEGER DEFAULT 0,
+            system_design_score INTEGER DEFAULT 0,
+            cleanliness_score INTEGER DEFAULT 0,
+            onboarding_complete BOOLEAN DEFAULT 0,
+            schedule_json TEXT,
+            skill_tree_json TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    ''')
+
+    # Chamber Attempts Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chamber_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            chamber_no INTEGER,
+            challenge_id TEXT,
+            code TEXT,
+            language TEXT,
+            passed BOOLEAN,
+            runtime_ms REAL,
+            complexity_label TEXT,
+            cleanliness_score INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_chamber_attempts_user_chamber
+        ON chamber_attempts (user_id, chamber_no)
     ''')
 
     # NEW: Global Projects Table for persistence
@@ -736,6 +832,120 @@ def get_user_by_token(token):
     user = get_user_by_id(session['user_id'])
     conn.close()
     return user
+
+def delete_session(token):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
+    conn.commit()
+    conn.close()
+
+# --- OAuth States Management ---
+def save_oauth_state(state):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    now_ts = time.time()
+    # Purge states older than 10 minutes (600 seconds)
+    cursor.execute("DELETE FROM oauth_states WHERE created_at < ?", (now_ts - 600.0,))
+    cursor.execute("INSERT OR REPLACE INTO oauth_states (state, created_at) VALUES (?, ?)", (state, now_ts))
+    conn.commit()
+    conn.close()
+
+def consume_oauth_state(state):
+    """Verifies and consumes a state token in a single atomic transaction. Returns True if valid and not expired."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    now_ts = time.time()
+    # Check if state exists and is not older than 10 minutes
+    cursor.execute("""
+        SELECT state FROM oauth_states 
+        WHERE state = ? AND created_at >= ?
+    """, (state, now_ts - 600.0))
+    row = cursor.fetchone()
+    if not row:
+        # Also clean up any expired states
+        cursor.execute("DELETE FROM oauth_states WHERE state = ? OR created_at < ?", (state, now_ts - 600.0))
+        conn.commit()
+        conn.close()
+        return False
+
+    # Atomically delete/consume state
+    cursor.execute("DELETE FROM oauth_states WHERE state = ?", (state,))
+    conn.commit()
+    conn.close()
+    return True
+
+# --- GitHub User & Player Profile Management ---
+def upsert_github_user(github_id, github_username, avatar_url, github_token_enc, email=None, display_name=None):
+    """Upserts a user by github_id and ensures their player_profile row exists. Returns the user dict."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM users WHERE github_id = ?", (str(github_id),))
+    existing = cursor.fetchone()
+
+    name = display_name or github_username
+    if existing:
+        user_id = existing['id']
+        cursor.execute("""
+            UPDATE users 
+            SET github_username = ?, avatar_url = ?, github_token_enc = ?, full_name = COALESCE(?, full_name), email = COALESCE(?, email)
+            WHERE id = ?
+        """, (github_username, avatar_url, github_token_enc, name, email, user_id))
+    else:
+        cursor.execute("""
+            INSERT INTO users (github_id, github_username, avatar_url, github_token_enc, full_name, email)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (str(github_id), github_username, avatar_url, github_token_enc, name, email))
+        user_id = cursor.lastrowid
+
+    # Ensure player_profile exists
+    cursor.execute("SELECT user_id FROM player_profile WHERE user_id = ?", (user_id,))
+    if not cursor.fetchone():
+        cursor.execute("""
+            INSERT INTO player_profile (user_id, total_nxp, current_streak, best_streak, current_chamber, dsa_score, system_design_score, cleanliness_score, onboarding_complete)
+            VALUES (?, 0, 0, 0, 1, 0, 0, 0, 0)
+        """, (user_id,))
+
+    conn.commit()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = dict(cursor.fetchone())
+    conn.close()
+    return user
+
+def get_player_profile(user_id):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM player_profile WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_user_me(user_id):
+    """Returns safe user and profile details for the /me endpoint. Never returns secrets or tokens."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT u.id, u.github_username, u.avatar_url, u.full_name AS display_name,
+               COALESCE(p.total_nxp, 0) AS total_nxp,
+               COALESCE(p.current_streak, 0) AS current_streak,
+               COALESCE(p.best_streak, 0) AS best_streak,
+               COALESCE(p.current_chamber, 1) AS current_chamber,
+               COALESCE(p.onboarding_complete, 0) AS onboarding_complete
+        FROM users u
+        LEFT JOIN player_profile p ON u.id = p.user_id
+        WHERE u.id = ?
+    """, (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    data = dict(row)
+    data["onboarding_complete"] = bool(data["onboarding_complete"])
+    return data
 
 def get_user_tree_stats(user_id):
     """Calculates trees grown for a specific user."""

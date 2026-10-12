@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
@@ -42,68 +42,10 @@ market = MarketAnalystAgent(mirror.client)
 foundry = FoundryAgent(mirror.client)
 resume_bot = ResumeAgent(mirror.client)
 
-# --- Auth Models & Logic ---
-import secrets
-import hashlib
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+# --- Auth Dependency & Router ---
+from auth_github import router as auth_router, oauth2_scheme, get_current_user
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-class SignupRequest(BaseModel):
-    name: str
-    email: str
-    password: str
-
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return hash_password(plain_password) == hashed_password
-
-@app.post("/auth/signup")
-def signup(req: SignupRequest):
-    # Check if user exists
-    existing = database.get_user_by_email(req.email)
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    pwd_hash = hash_password(req.password)
-    user_id = database.create_user(req.email, pwd_hash, req.name)
-    
-    if not user_id:
-         raise HTTPException(status_code=500, detail="Failed to create user")
-         
-    return {"message": "User created successfully", "user_id": user_id}
-
-@app.post("/login")
-def login(req: LoginRequest):
-    user = database.get_user_by_email(req.email)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-    if not verify_password(req.password, user['password_hash']):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-    # Generate Token
-    token = secrets.token_hex(32)
-    database.create_session(user['id'], token)
-    
-    return {"token": token, "name": user['full_name'], "email": user['email']}
-
-def get_current_user(token: str = Depends(oauth2_scheme)):
-    user = database.get_user_by_token(token)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
+app.include_router(auth_router)
 
 # --- Foundry API Models & Endpoints ---
 # --- Foundry API Models & Endpoints ---
