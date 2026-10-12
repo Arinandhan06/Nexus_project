@@ -40,10 +40,18 @@ function AuthenticatedApp({ currentUser, onLogout }) {
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(() => {
+    if (typeof window !== "undefined" && window.location.pathname === "/auth/callback") {
+      return false;
+    }
     return Boolean(sessionStorage.getItem("authToken"));
   });
 
   useEffect(() => {
+    if (window.location.pathname === "/auth/callback") {
+      setAuthChecking(false);
+      return;
+    }
+
     const token = sessionStorage.getItem("authToken");
     if (!token) {
       setCurrentUser(null);
@@ -51,28 +59,36 @@ export default function App() {
       return;
     }
 
-    let isMounted = true;
+    let ignore = false;
     api
       .get("/me")
       .then((res) => {
-        if (isMounted) {
+        if (!ignore) {
           setCurrentUser(res.data);
-          setAuthChecking(false);
         }
       })
       .catch((err) => {
-        if (isMounted) {
-          console.warn("Session check rejected:", err.message);
+        if (!ignore) {
+          console.warn("Session check rejected:", err?.message);
           sessionStorage.removeItem("authToken");
           setCurrentUser(null);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
           setAuthChecking(false);
         }
       });
 
     return () => {
-      isMounted = false;
+      ignore = true;
     };
   }, []);
+
+  const handleAuthSuccess = (user) => {
+    setCurrentUser(user);
+    setAuthChecking(false);
+  };
 
   // Activity Tracking
   const activityTimerRef = useRef(0);
@@ -114,7 +130,7 @@ export default function App() {
     <Router>
       <Routes>
         {/* OAuth Callback route always accessible */}
-        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/auth/callback" element={<AuthCallback onLoginSuccess={handleAuthSuccess} />} />
 
         {/* Public Login Route */}
         <Route

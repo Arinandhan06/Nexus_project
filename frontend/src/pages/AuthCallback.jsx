@@ -1,22 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AlertCircle, RefreshCw, Terminal, CheckCircle } from "lucide-react";
 import api from "../lib/api";
 
-export default function AuthCallback() {
+export default function AuthCallback({ onLoginSuccess }) {
   const [status, setStatus] = useState("verifying"); // "verifying" | "success" | "error"
   const [errorMessage, setErrorMessage] = useState("");
+  const executedRef = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Prevent React 18/19 StrictMode double-execution from clearing token
+    if (executedRef.current) return;
+    executedRef.current = true;
+
     const processCallback = async () => {
       try {
         const hash = window.location.hash || "";
-        // Clean the hash immediately from browser history/address bar
-        if (window.history && window.history.replaceState) {
-          window.history.replaceState(null, "", window.location.pathname + window.location.search);
-        }
 
         // Parse token from fragment (#token=XYZ)
         let token = null;
@@ -25,12 +26,22 @@ export default function AuthCallback() {
           token = params.get("token");
         }
 
+        // Fallback: check if already in sessionStorage (e.g. from previous tick)
+        if (!token) {
+          token = sessionStorage.getItem("authToken");
+        }
+
         if (!token) {
           throw new Error("Missing authentication token in OAuth callback URL.");
         }
 
-        // Store token in session storage
+        // Store token in session storage immediately
         sessionStorage.setItem("authToken", token);
+
+        // Clean the hash cleanly from browser address bar
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
 
         // Verify token with backend /me endpoint with explicit Bearer header
         const response = await api.get("/me", {
@@ -42,14 +53,24 @@ export default function AuthCallback() {
 
         setStatus("success");
 
+        if (typeof onLoginSuccess === "function") {
+          onLoginSuccess(user);
+        }
+
         // Navigate cleanly to / (or /onboarding if false)
+        const target = user.onboarding_complete === false ? "/onboarding" : "/";
         setTimeout(() => {
-          const target = user.onboarding_complete === false ? "/onboarding" : "/";
-          window.location.href = target;
+          if (typeof onLoginSuccess === "function") {
+            navigate(target, { replace: true });
+          } else {
+            window.location.replace(target);
+          }
         }, 300);
       } catch (err) {
         console.error("Auth callback verification error:", err);
-        sessionStorage.removeItem("authToken");
+        if (err.response?.status === 401) {
+          sessionStorage.removeItem("authToken");
+        }
         setStatus("error");
         setErrorMessage(
           err.response?.data?.detail ||
@@ -60,7 +81,7 @@ export default function AuthCallback() {
     };
 
     processCallback();
-  }, [navigate]);
+  }, [navigate, onLoginSuccess]);
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-black text-white px-4">

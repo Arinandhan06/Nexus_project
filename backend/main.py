@@ -20,11 +20,15 @@ load_dotenv()
 database.init_db()
 
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-origins = [frontend_url]
-if frontend_url.endswith("/"):
-    origins.append(frontend_url.rstrip("/"))
-else:
-    origins.append(f"{frontend_url}/")
+origins = list({
+    frontend_url,
+    frontend_url.rstrip("/"),
+    f"{frontend_url.rstrip('/')}/",
+    "http://localhost:5173",
+    "http://localhost:5173/",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5173/",
+})
 
 app = FastAPI(title="NEXUS: CODE AWAKENING")
 app.add_middleware(

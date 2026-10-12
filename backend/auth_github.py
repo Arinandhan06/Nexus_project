@@ -121,26 +121,45 @@ async def github_callback(code: Optional[str] = None, state: Optional[str] = Non
         "client_secret": client_secret,
         "code": code,
     }
-    headers = {"Accept": "application/json"}
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "Nexus-Code-Awakening/1.0",
+    }
+    timeout = httpx.Timeout(25.0, connect=15.0)
 
-    async with httpx.AsyncClient() as client:
-        token_res = await client.post(token_url, json=token_payload, headers=headers)
-        if token_res.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to retrieve GitHub access token")
-        token_data = token_res.json()
-        access_token = token_data.get("access_token")
-        if not access_token:
-            error_msg = token_data.get("error_description", "Invalid OAuth code")
-            raise HTTPException(status_code=400, detail=error_msg)
+    try:
+        async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
+            token_res = await client.post(token_url, json=token_payload)
+            if token_res.status_code != 200:
+                raise HTTPException(status_code=400, detail="Failed to retrieve GitHub access token")
+            token_data = token_res.json()
+            access_token = token_data.get("access_token")
+            if not access_token:
+                error_msg = token_data.get("error_description", "Invalid OAuth code")
+                raise HTTPException(status_code=400, detail=error_msg)
 
-        # Fetch GitHub User Profile
-        user_res = await client.get(
-            "https://api.github.com/user",
-            headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-        )
-        if user_res.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to fetch GitHub profile")
-        user_data = user_res.json()
+            # Fetch GitHub User Profile with automatic retry on transient connection drops
+            user_data = None
+            for attempt in range(2):
+                try:
+                    user_res = await client.get(
+                        "https://api.github.com/user",
+                        headers={"Authorization": f"Bearer {access_token}"}
+                    )
+                    if user_res.status_code == 200:
+                        user_data = user_res.json()
+                        break
+                    else:
+                        raise HTTPException(status_code=400, detail="Failed to fetch GitHub profile")
+                except (httpx.ConnectTimeout, httpx.ConnectError):
+                    if attempt == 1:
+                        raise
+            if not user_data:
+                raise HTTPException(status_code=400, detail="Failed to fetch GitHub profile")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="GitHub connection timed out. Please retry authentication.")
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Network error communicating with GitHub: {str(exc)}")
 
     github_id = str(user_data["id"])
     github_username = user_data.get("login")

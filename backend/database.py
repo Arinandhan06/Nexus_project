@@ -894,11 +894,32 @@ def upsert_github_user(github_id, github_username, avatar_url, github_token_enc,
             WHERE id = ?
         """, (github_username, avatar_url, github_token_enc, name, email, user_id))
     else:
-        cursor.execute("""
-            INSERT INTO users (github_id, github_username, avatar_url, github_token_enc, full_name, email)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (str(github_id), github_username, avatar_url, github_token_enc, name, email))
-        user_id = cursor.lastrowid
+        # Check if an existing user matches by email without a linked github_id
+        existing_by_email = None
+        if email:
+            cursor.execute("SELECT id FROM users WHERE email = ? AND (github_id IS NULL OR github_id = '')", (email,))
+            existing_by_email = cursor.fetchone()
+
+        if existing_by_email:
+            user_id = existing_by_email['id']
+            cursor.execute("""
+                UPDATE users 
+                SET github_id = ?, github_username = ?, avatar_url = ?, github_token_enc = ?, full_name = COALESCE(?, full_name)
+                WHERE id = ?
+            """, (str(github_id), github_username, avatar_url, github_token_enc, name, user_id))
+        else:
+            try:
+                cursor.execute("""
+                    INSERT INTO users (github_id, github_username, avatar_url, github_token_enc, full_name, email)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (str(github_id), github_username, avatar_url, github_token_enc, name, email))
+                user_id = cursor.lastrowid
+            except sqlite3.IntegrityError:
+                cursor.execute("""
+                    INSERT INTO users (github_id, github_username, avatar_url, github_token_enc, full_name, email)
+                    VALUES (?, ?, ?, ?, ?, NULL)
+                """, (str(github_id), github_username, avatar_url, github_token_enc, name))
+                user_id = cursor.lastrowid
 
     # Ensure player_profile exists
     cursor.execute("SELECT user_id FROM player_profile WHERE user_id = ?", (user_id,))
