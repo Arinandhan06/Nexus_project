@@ -39,13 +39,26 @@ class MockCompletions:
             canned_data = {
                 "target_role": "Software Engineer",
                 "matrix": {"dsa": 60, "system_design": 55, "cleanliness": 60},
-                "skill_tree": [
-                    {"category": "Algorithms", "skills": [{"name": "Two Pointers", "level": "proficient"}, {"name": "Binary Search", "level": "familiar"}]},
-                    {"category": "Systems", "skills": [{"name": "REST APIs", "level": "proficient"}, {"name": "Database Design", "level": "familiar"}]}
-                ],
+                "skill_tree": {
+                    "Data Structures & Algorithms": [
+                        {"name": "Two Pointers", "level": 58, "evidence": "Uses efficient array traversal patterns."}
+                    ],
+                    "System Design": [
+                        {"name": "REST APIs", "level": 55, "evidence": "Experience building API-based services."}
+                    ],
+                    "Code Quality": [
+                        {"name": "Testing Discipline", "level": 52, "evidence": "Demonstrates structured implementation practices."}
+                    ],
+                    "Languages": [
+                        {"name": "Python", "level": 60, "evidence": "Primary backend implementation language."}
+                    ],
+                    "Tools": [
+                        {"name": "Git", "level": 57, "evidence": "Version-control workflow usage."}
+                    ]
+                },
                 "weaknesses": [
-                    {"name": "Dynamic Programming", "reason": "Requires algorithmic reinforcement."},
-                    {"name": "Distributed Caching", "reason": "Limited high-concurrency systems exposure."}
+                    "Dynamic Programming under interview pressure",
+                    "Distributed caching and invalidation strategy"
                 ]
             }
             return MockCompletion(json.dumps(canned_data))
