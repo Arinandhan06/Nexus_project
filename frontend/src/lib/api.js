@@ -1,15 +1,18 @@
 import axios from "axios";
 
+// Live production backend URL on Render
+const PRODUCTION_BACKEND_URL = "https://nexus-backend-vdbp.onrender.com";
+
 const defaultHost = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
 const defaultPort = 8000;
 const isDevPort = typeof window !== "undefined" && (window.location.port === "5173" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-const defaultBase = isDevPort ? `http://${defaultHost}:${defaultPort}` : "";
+const defaultBase = isDevPort ? `http://${defaultHost}:${defaultPort}` : PRODUCTION_BACKEND_URL;
 
 let rawBaseURL = import.meta.env.VITE_API_URL || defaultBase;
 if (rawBaseURL && !rawBaseURL.startsWith("http://") && !rawBaseURL.startsWith("https://")) {
   rawBaseURL = `https://${rawBaseURL}`;
 }
-const baseURL = rawBaseURL ? rawBaseURL.replace(/\/+$/, "") : "";
+const baseURL = rawBaseURL ? rawBaseURL.replace(/\/+$/, "") : PRODUCTION_BACKEND_URL;
 
 const api = axios.create({
   baseURL,

@@ -130,9 +130,10 @@ async def github_callback(request: Request, code: Optional[str] = None, state: O
     if req_host == "127.0.0.1" and "localhost:5173" in frontend_url:
         frontend_url = frontend_url.replace("localhost", "127.0.0.1")
     elif req_host not in ("127.0.0.1", "localhost", ""):
-        # Running in cloud (e.g. Render / Vercel), frontend matches the origin or FRONTEND_URL
-        if not os.getenv("FRONTEND_URL"):
-            frontend_url = f"{request.url.scheme}://{request.url.netloc}"
+        # Running in cloud (e.g. Render backend), redirect back to Vercel production frontend
+        configured_frontend = os.getenv("FRONTEND_URL", "")
+        if not configured_frontend or "localhost" in configured_frontend or "127.0.0.1" in configured_frontend:
+            frontend_url = "https://nexus-project-livid.vercel.app"
 
     # Exchange code for access token with GitHub
     token_url = "https://github.com/login/oauth/access_token"
