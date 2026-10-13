@@ -141,6 +141,10 @@ class GitHubTrophyClient:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 yield client
 
+    def _should_mock_externals(self) -> bool:
+        import os
+        return self.http_client is None and os.getenv("MOCK_EXTERNALS", "").lower() in ("true", "1", "yes")
+
     def _check_rate_limit(self, response: httpx.Response):
         rem = response.headers.get("x-ratelimit-remaining")
         reset_ts = response.headers.get("x-ratelimit-reset")
@@ -161,8 +165,7 @@ class GitHubTrophyClient:
         """
         Fetches the user's profile README from https://api.github.com/repos/{login}/{login}/contents/README.md.
         """
-        import os
-        if os.getenv("MOCK_EXTERNALS", "").lower() in ("true", "1", "yes"):
+        if self._should_mock_externals():
             return {
                 "repo_name": f"{self.login}/{self.login}",
                 "repo_exists": True,
@@ -235,8 +238,7 @@ class GitHubTrophyClient:
         """
         Creates public {login}/{login} profile repository with auto_init=True if confirmed by user.
         """
-        import os
-        if os.getenv("MOCK_EXTERNALS", "").lower() in ("true", "1", "yes"):
+        if self._should_mock_externals():
             return True
 
         async with self._session() as client:
@@ -266,8 +268,7 @@ class GitHubTrophyClient:
         Handles 409 sha conflict with single retry.
         Parses commit.verification strictly.
         """
-        import os
-        if os.getenv("MOCK_EXTERNALS", "").lower() in ("true", "1", "yes"):
+        if self._should_mock_externals():
             return {
                 "status": "success",
                 "already_claimed": False,

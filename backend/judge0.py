@@ -74,6 +74,13 @@ def map_judge0_status(status_id: int) -> str:
 def is_mock_externals() -> bool:
     return os.getenv("MOCK_EXTERNALS", "").lower() in ("true", "1", "yes")
 
+def should_use_mock_externals(client: Optional[httpx.AsyncClient] = None) -> bool:
+    if not is_mock_externals():
+        return False
+    if client is not None:
+        return False
+    return _custom_client is None
+
 async def resolve_python_language_id(client: Optional[httpx.AsyncClient] = None) -> int:
     """
     Calls GET /languages once and resolves Python 3 language ID by NAME.
@@ -83,7 +90,7 @@ async def resolve_python_language_id(client: Optional[httpx.AsyncClient] = None)
     if _python_language_id is not None:
         return _python_language_id
 
-    if is_mock_externals():
+    if should_use_mock_externals(client):
         _python_language_id = 71
         return 71
 
@@ -138,7 +145,7 @@ async def execute_batch(
     if not submissions:
         return []
 
-    if is_mock_externals():
+    if should_use_mock_externals(client):
         import sys
         import subprocess
         import time as _time
