@@ -14,6 +14,7 @@ import {
 import promptsData from "../data/construct_prompts.json";
 import { NexusButton, StatBadge, GlitchText } from "../components/nexus";
 import SecureComms from "../components/nexus/SecureComms";
+import api from "../lib/api";
 
 // Lazy-load CodeEditor as required by spec
 const CodeEditor = lazy(() => import("../components/nexus/CodeEditor"));
@@ -67,6 +68,33 @@ export default function Construct() {
       localStorage.setItem(`construct_draft_${activePrompt.id}`, starter);
     } catch (e) {
       console.warn("localStorage reset failed:", e);
+    }
+  };
+
+  const [isRunning, setIsRunning] = useState(false);
+  const [runResults, setRunResults] = useState(null);
+  const [runStdout, setRunStdout] = useState("");
+  const [runError, setRunError] = useState(null);
+
+  const handleRunCode = async () => {
+    if (isRunning) return;
+    try {
+      setIsRunning(true);
+      setRunError(null);
+      const res = await api.post("/construct/run", {
+        prompt_id: activePrompt.id,
+        code
+      });
+      setRunResults(res.data.results || []);
+      setRunStdout(res.data.stdout || "");
+      if (!res.data.success && res.data.error) {
+        setRunError(res.data.error);
+      }
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Execution failed.";
+      setRunError(msg);
+    } finally {
+      setIsRunning(false);
     }
   };
 
@@ -282,22 +310,25 @@ export default function Construct() {
                   <RotateCcw size={12} />
                   <span>Reset</span>
                 </button>
-                {/* Disabled Run Button with tooltip */}
-                <div className="relative group">
-                  <button
-                    type="button"
-                    disabled
-                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-zinc-800/80 border border-zinc-700/60 text-zinc-500 text-xs font-mono font-bold uppercase tracking-wider cursor-not-allowed opacity-60"
-                  >
-                    <Play size={12} />
-                    <span>Run</span>
-                  </button>
-                  <div className="absolute right-0 bottom-full mb-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none">
-                    <span className="px-2.5 py-1 text-[11px] font-mono font-semibold bg-zinc-900 border border-cyan-500/40 text-cyan-300 rounded shadow-xl whitespace-nowrap">
-                      Execution arrives in phase 6
-                    </span>
-                  </div>
-                </div>
+                {/* Active Run Button */}
+                <button
+                  type="button"
+                  onClick={handleRunCode}
+                  disabled={isRunning}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 border border-cyan-400/50 text-white text-xs font-mono font-bold uppercase tracking-wider cursor-pointer shadow-lg shadow-cyan-950/50 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                >
+                  {isRunning ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Running...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play size={12} className="fill-white" />
+                      <span>Run</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -393,18 +424,59 @@ export default function Construct() {
           </div>
 
           {/* Bottom Output Panel */}
-          <div className="h-32 border-t border-zinc-800 bg-[#050b18] flex flex-col shrink-0">
+          <div className="h-44 border-t border-zinc-800 bg-[#050b18] flex flex-col shrink-0">
             <div className="h-7 px-3 bg-[#081022] border-b border-zinc-800/80 flex items-center justify-between text-[11px] font-mono text-zinc-400">
               <div className="flex items-center gap-2">
                 <Terminal size={12} className="text-cyan-400" />
-                <span>TERMINAL / CONSTRUCT FEED</span>
+                <span>TERMINAL / CONSTRUCT RUN FEED</span>
               </div>
-              <span className="text-[10px] text-zinc-500">Auto-saved to localStorage</span>
+              <span className="text-[10px] text-zinc-500">
+                {isRunning ? "Executing test vectors..." : runResults ? "Run finished" : "Auto-saved to localStorage"}
+              </span>
             </div>
-            <div className="flex-1 p-3 overflow-y-auto font-mono text-xs text-zinc-400 space-y-1">
-              <p className="text-cyan-400/90">&gt; LeetCode environment loaded for #{activePrompt.leetcode_id || 1} {activePrompt.title}.</p>
-              <p className="text-zinc-500">&gt; Use Shift+Alt+F to format solution. Consult ARIA for hints.</p>
-              <p className="text-zinc-600">&gt; Live submission &amp; test harness execution unlocks in Phase 6.</p>
+            <div className="flex-1 p-3 overflow-y-auto font-mono text-xs text-zinc-400 space-y-1.5">
+              {isRunning && (
+                <p className="text-cyan-400 animate-pulse">&gt; Compiling and executing test harness in sandbox...</p>
+              )}
+
+              {runError && (
+                <div className="p-2 rounded bg-red-950/40 border border-red-500/40 text-red-300 text-xs">
+                  <span className="font-bold">&gt; ERROR:</span> {runError}
+                </div>
+              )}
+
+              {runResults && runResults.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-xs font-bold text-white flex items-center justify-between pb-1 border-b border-zinc-900">
+                    <span>Public Examples ({runResults.filter(r => r.passed).length}/{runResults.length} Passed)</span>
+                  </div>
+                  {runResults.map((r, i) => (
+                    <div key={i} className="text-xs flex flex-wrap items-center gap-2 p-1.5 rounded bg-black/40 border border-zinc-900">
+                      <span className={r.passed ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
+                        {r.passed ? "✓ PASS" : "✗ FAIL"} Example {r.example_no}:
+                      </span>
+                      <span className="text-zinc-500">Input: {r.input} |</span>
+                      <span className="text-zinc-400">Expected: {r.expected} |</span>
+                      <span className={r.passed ? "text-emerald-300" : "text-red-300"}>Output: {r.actual ?? "None"}</span>
+                      {r.time_ms > 0 && <span className="text-zinc-600">({r.time_ms}ms)</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {runStdout && (
+                <div className="pt-1 text-zinc-300">
+                  <span className="text-zinc-500 select-none">&gt; stdout:</span>
+                  <pre className="text-xs text-cyan-200 mt-0.5 whitespace-pre-wrap">{runStdout}</pre>
+                </div>
+              )}
+
+              {!isRunning && !runResults && !runError && (
+                <>
+                  <p className="text-cyan-400/90">&gt; LeetCode environment loaded for #{activePrompt.leetcode_id || 1} {activePrompt.title}.</p>
+                  <p className="text-zinc-500">&gt; Click [Run] to execute solution against public examples.</p>
+                </>
+              )}
             </div>
           </div>
         </div>

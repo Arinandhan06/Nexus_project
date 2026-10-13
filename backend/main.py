@@ -1,13 +1,17 @@
-from fastapi import FastAPI, UploadFile, File, Form, Depends
+from fastapi import FastAPI, UploadFile, File, Form, Depends, BackgroundTasks, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
 import time
+import re
 import uvicorn
 import json # Essential for /market-match logic
 from dotenv import load_dotenv
 from pydantic import BaseModel
 import database
+import evaluator
+import harness
+import judge0
 from mirror_agent import MirrorAgent
 from lab_agent import LabAgent
 from foundry_agent import FoundryAgent
@@ -411,15 +415,17 @@ def get_current_chamber_endpoint(
         raise HTTPException(status_code=400, detail="Chamber number must be between 1 and 6.")
     return chamber_engine.get_current_chamber_info(current_user["id"], chamber_no)
 
-@app.post("/chambers/{chamber_no}/submit", response_model=ChamberSubmitResponse)
+@app.post("/chambers/{chamber_no}/submit", response_model=ChamberSubmitResponse, status_code=status.HTTP_202_ACCEPTED)
 async def submit_chamber_endpoint(
     chamber_no: int,
     payload: ChamberSubmitRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
     if chamber_no < 1 or chamber_no > 6:
         raise HTTPException(status_code=400, detail="Chamber number must be between 1 and 6.")
     try:
+        # Pre-validates code size, deadline (+5s grace), ACTIVE state, moves to EVALUATING
         result = chamber_engine.record_chamber_submission(
             user_id=current_user["id"],
             chamber_no=chamber_no,
@@ -430,11 +436,151 @@ async def submit_chamber_endpoint(
             "type": "state",
             "payload": {"chamber_no": chamber_no, "state": result["state"]}
         })
+
+        # Launch background grading & evaluation pipeline
+        background_tasks.add_task(
+            chamber_engine.process_chamber_submission_pipeline,
+            user_id=current_user["id"],
+            chamber_no=chamber_no,
+            code=payload.code,
+            language=payload.language
+        )
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# --- CONSTRUCT SANDBOX EXECUTION (PHASE 6) ---
+class ConstructRunRequest(BaseModel):
+    prompt_id: str
+    code: str
+
+_construct_run_timestamps = defaultdict(list)
+
+def check_construct_rate_limit(user_id: int):
+    now = time.time()
+    window_start = now - 60.0
+    timestamps = [ts for ts in _construct_run_timestamps[user_id] if ts > window_start]
+    if len(timestamps) >= 10:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Maximum 10 Construct executions per minute."
+        )
+    timestamps.append(now)
+    _construct_run_timestamps[user_id] = timestamps
+
+CONSTRUCT_PROMPTS_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "frontend", "src", "data", "construct_prompts.json"
+)
+
+def get_construct_prompt_data(prompt_id: str) -> Optional[dict]:
+    try:
+        with open(CONSTRUCT_PROMPTS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            for p in data:
+                if p.get("id") == prompt_id:
+                    return p
+    except Exception as e:
+        print(f"Error loading construct prompts: {e}")
+    return None
+
+@app.post("/construct/run")
+async def run_construct_sandbox_endpoint(
+    payload: ConstructRunRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Executes player code in the Construct sandbox against public examples only.
+    Rate-limited to 10 requests per minute per user.
+    """
+    check_construct_rate_limit(current_user["id"])
+
+    prompt = get_construct_prompt_data(payload.prompt_id)
+    if not prompt:
+        raise HTTPException(status_code=404, detail=f"Prompt '{payload.prompt_id}' not found.")
+
+    code = payload.code
+    if not code or not code.strip():
+        raise HTTPException(status_code=400, detail="Code cannot be empty.")
+
+    # 1. Static pre-check
+    pre = evaluator.pre_check_code(code)
+    if not pre["passed"]:
+        return {
+            "success": False,
+            "error": pre["message"],
+            "reason": pre["reason"],
+            "results": [],
+            "stdout": pre["message"]
+        }
+
+    # 2. Resolve entry point from prompt or starter code
+    entry_point = prompt.get("entry_point")
+    if not entry_point:
+        m = re.search(r"def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(", prompt.get("starter_code", ""))
+        entry_point = m.group(1) if m else "solution"
+
+    examples = prompt.get("examples", [])
+    program_code = harness.build_program(code, entry_point)
+
+    submissions = []
+    for ex in examples:
+        stdin_json = harness.prepare_test_stdin(ex.get("input"))
+        submissions.append({
+            "source_code": program_code,
+            "stdin": stdin_json,
+            "cpu_time_limit": 2.0,
+            "memory_limit": 128000
+        })
+
+    judge_results = await judge0.execute_batch(submissions)
+
+    results = []
+    user_stdouts = []
+    all_passed = True if len(examples) > 0 else False
+
+    for idx, ex in enumerate(examples):
+        j_res = judge_results[idx] if idx < len(judge_results) else {
+            "status": "internal_error", "time_ms": 0, "stdout": "", "error_message": ""
+        }
+
+        parsed = harness.parse_harness_output(j_res.get("stdout", ""))
+        if parsed.get("stdout"):
+            user_stdouts.append(parsed["stdout"])
+
+        if j_res.get("status") == "passed":
+            if parsed.get("found") and not parsed.get("error"):
+                is_correct = harness.compare_results(parsed.get("result"), ex.get("output"))
+                test_status = "passed" if is_correct else "wrong_answer"
+            elif parsed.get("error"):
+                test_status = "runtime_error"
+            else:
+                test_status = "wrong_answer"
+        else:
+            test_status = j_res.get("status", "internal_error")
+
+        passed = (test_status == "passed")
+        if not passed:
+            all_passed = False
+
+        results.append({
+            "example_no": idx + 1,
+            "input": ex.get("input"),
+            "expected": ex.get("output"),
+            "actual": str(parsed.get("result")) if parsed.get("found") and not parsed.get("error") else None,
+            "passed": passed,
+            "status": test_status,
+            "time_ms": j_res.get("time_ms", 0),
+            "error": parsed.get("error") or j_res.get("error_message") or None,
+            "stdout": parsed.get("stdout", "")
+        })
+
+    return {
+        "success": all_passed,
+        "results": results,
+        "stdout": "\n".join(user_stdouts)
+    }
 
 @app.post("/ws/ticket", response_model=TicketResponse)
 def get_ws_ticket_endpoint(current_user: dict = Depends(get_current_user)):

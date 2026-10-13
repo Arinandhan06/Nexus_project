@@ -38,7 +38,8 @@
             "input": "[4,3,2,1,4]",
             "output": "16"
           }
-        ]
+        ],
+        "entry_point": "max_containment"
       },
       {
         "id": "ch1-pressure-indices",
@@ -73,7 +74,8 @@
             "input": "sensors = [1,5,9,14], target = 15",
             "output": "[0,3]"
           }
-        ]
+        ],
+        "entry_point": "triangulate_sensors"
       }
     ]
   },
@@ -115,7 +117,8 @@
             "input": "s = \"[\"",
             "output": "false"
           }
-        ]
+        ],
+        "entry_point": "validate_packet"
       },
       {
         "id": "ch2-voltage-window",
@@ -146,7 +149,8 @@
             "input": "voltages = [9,11], k = 2",
             "output": "[11]"
           }
-        ]
+        ],
+        "entry_point": "max_sliding_voltage"
       }
     ]
   },
@@ -185,7 +189,8 @@
             "input": "grid = [[\"0\",\"0\"],[\"0\",\"0\"]]",
             "output": "0"
           }
-        ]
+        ],
+        "entry_point": "count_transit_clusters"
       },
       {
         "id": "ch3-shortest-bypass",
@@ -216,7 +221,8 @@
             "input": "grid = [[1,0],[0,0]]",
             "output": "-1"
           }
-        ]
+        ],
+        "entry_point": "shortest_clear_path"
       }
     ]
   },
@@ -257,7 +263,8 @@
             "input": "n = 10",
             "output": "89"
           }
-        ]
+        ],
+        "entry_point": "count_frequency_hops"
       },
       {
         "id": "ch4-coin-denominations",
@@ -293,7 +300,8 @@
             "input": "packets = [186,419,83,408], amount = 6249",
             "output": "20"
           }
-        ]
+        ],
+        "entry_point": "min_packets_needed"
       }
     ]
   },
@@ -327,7 +335,8 @@
             "input": "root = None",
             "output": "None"
           }
-        ]
+        ],
+        "entry_point": "invert_key_tree"
       },
       {
         "id": "ch5-kth-priority-key",
@@ -357,7 +366,8 @@
             "input": "keys = [1], k = 1",
             "output": "1"
           }
-        ]
+        ],
+        "entry_point": "find_kth_clearance"
       }
     ]
   },

@@ -152,26 +152,20 @@ def test_second_submit_while_evaluating_is_rejected():
     token, user_id = get_auth_token(user_id=505, username="cadet_505")
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Chamber 1 is UNLOCKED by default, enter it directly
+    # Chamber 1 entered -> ACTIVE
     enter_res = client.post("/chambers/1/enter", headers=headers)
     assert enter_res.status_code == 200
 
-    # First submit -> moves to EVALUATING
-    res1 = client.post("/chambers/1/submit", headers=headers, json={
-        "code": "def solve(): return 42",
-        "language": "python"
-    })
-    assert res1.status_code == 200
-    assert res1.json()["status"] == "evaluation_pending"
-    assert res1.json()["state"] == "EVALUATING"
+    # Set state to EVALUATING directly
+    chamber_engine.set_chamber_state(user_id, 1, ChamberState.EVALUATING)
 
-    # Second submit while EVALUATING must be rejected
-    res2 = client.post("/chambers/1/submit", headers=headers, json={
+    # Submit while EVALUATING must be rejected
+    res = client.post("/chambers/1/submit", headers=headers, json={
         "code": "def solve(): return 99",
         "language": "python"
     })
-    assert res2.status_code == 400
-    assert "A submission is already pending evaluation" in res2.json()["detail"]
+    assert res.status_code == 400
+    assert "A submission is already pending evaluation" in res.json()["detail"]
 
 def test_ticket_works_once_only_and_expires():
     token, user_id = get_auth_token(user_id=606, username="cadet_606")

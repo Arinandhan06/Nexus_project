@@ -41,6 +41,7 @@ export default function ChamberRun({ currentUser }) {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [showAriaModal, setShowAriaModal] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
 
   // Live Terminal Logs & WS Status
   const [terminalLogs, setTerminalLogs] = useState([]);
@@ -62,6 +63,7 @@ export default function ChamberRun({ currentUser }) {
     try {
       setChamberState("LOADING");
       setErrorMsg(null);
+      setLastResult(null);
       addLog({ text: `Initializing connection to Chamber ${chamberNum} Core...`, type: "system" });
 
       // First check if current chamber info already active
@@ -145,14 +147,42 @@ export default function ChamberRun({ currentUser }) {
         }
       },
       onMessage: (msg) => {
-        if (msg.type === "state" && msg.payload) {
+        if (msg.type === "judging" && msg.payload) {
           addLog({
-            text: `Remote state synchronization event: ${msg.payload.state}`,
+            text: msg.payload.message || "Judging in progress...",
+            type: "system"
+          });
+        } else if (msg.type === "state" && msg.payload) {
+          addLog({
+            text: `Remote state synchronization: ${msg.payload.state}`,
             type: "info"
           });
           if (msg.payload.state) {
             setChamberState(msg.payload.state);
           }
+        } else if (msg.type === "result" && msg.payload) {
+          const { passed, tests = [], complexity, cleanliness, findings = [] } = msg.payload;
+          const passedCount = tests.filter((t) => t.status === "passed").length;
+
+          addLog({
+            text: `Grading completed: ${passedCount}/${tests.length} tests passed`,
+            type: passed ? "success" : "error"
+          });
+          if (complexity) {
+            addLog({
+              text: `complexity: ${complexity}`,
+              type: "info"
+            });
+          }
+          if (cleanliness !== undefined) {
+            addLog({
+              text: `cleanliness: ${cleanliness}/100 (${findings.length} findings)`,
+              type: "info"
+            });
+          }
+
+          setLastResult(msg.payload);
+          setChamberState(passed ? "PASSED" : "FAILED");
         }
       },
       onError: () => {
@@ -533,11 +563,12 @@ export default function ChamberRun({ currentUser }) {
           </div>
 
           {/* Bottom: Live Terminal Screen */}
-          <div className="h-[220px] shrink-0">
+          <div className="h-[240px] shrink-0">
             <Terminal
               chamberNo={chamberNum}
               logs={terminalLogs}
               connectionStatus={wsStatus}
+              result={lastResult}
               className="h-full"
               onClear={() => setTerminalLogs([])}
             />

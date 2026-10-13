@@ -1232,5 +1232,27 @@ def get_aria_history(user_id: int, challenge_id: str):
     session_id = get_aria_challenge_session_id(user_id, challenge_id)
     return get_chat_history(session_id)
 
+def update_latest_chamber_attempt(
+    user_id: int,
+    chamber_no: int,
+    passed: bool,
+    runtime_ms: float = 0.0,
+    complexity_label: str = "",
+    cleanliness_score: int = 100
+):
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE chamber_attempts
+        SET passed = ?, runtime_ms = ?, complexity_label = ?, cleanliness_score = ?
+        WHERE id = (
+            SELECT id FROM chamber_attempts
+            WHERE user_id = ? AND chamber_no = ?
+            ORDER BY id DESC LIMIT 1
+        )
+    """, (passed, runtime_ms, complexity_label, cleanliness_score, user_id, chamber_no))
+    conn.commit()
+    conn.close()
+
 # Initialize DB
 init_db()

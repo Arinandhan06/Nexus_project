@@ -4,6 +4,10 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 import database
+import judge0
+import harness
+import evaluator
+import ws
 
 CHAMBERS_DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "chambers.json")
 
@@ -366,3 +370,222 @@ def record_chamber_submission(
         "state": updated["state"],
         "chamber_no": chamber_no
     }
+
+async def process_chamber_submission_pipeline(
+    user_id: int,
+    chamber_no: int,
+    code: str,
+    language: str = "python"
+):
+    """
+    Asynchronous submission execution pipeline for Phase 6:
+    1. Static pre-check with evaluator.py (SyntaxError and forbidden calls/imports).
+    2. Batch Judge0 execution against hidden test cases using harness.py.
+    3. AST complexity and cleanliness grading.
+    4. Database attempt update & Chamber state transition (PASSED/FAILED).
+    5. WebSocket event pushing (judging, result).
+    """
+    try:
+        # Ensure state is EVALUATING if entered from ACTIVE
+        st_init = get_or_init_user_chamber_state(user_id, chamber_no)
+        if st_init["state"] == ChamberState.ACTIVE:
+            set_chamber_state(user_id, chamber_no, ChamberState.EVALUATING)
+
+        # Step 1: Push judging event
+        await ws.ws_manager.broadcast_to_user(user_id, {
+            "type": "judging",
+            "payload": {
+                "message": "NEXUS Core: Static AST validation & security pre-checks engaged...",
+                "chamber_no": chamber_no
+            }
+        })
+
+        # Step 2: Static pre-check
+        pre = evaluator.pre_check_code(code)
+        if not pre["passed"]:
+            reason = pre["reason"]
+            msg = pre["message"]
+            findings = [{"line": 1, "message": msg}]
+
+            # Move state to FAILED
+            set_chamber_state(user_id, chamber_no, ChamberState.FAILED)
+            database.update_latest_chamber_attempt(
+                user_id=user_id,
+                chamber_no=chamber_no,
+                passed=False,
+                runtime_ms=0,
+                complexity_label="Blocked" if reason == "blocked" else "SyntaxError",
+                cleanliness_score=0
+            )
+
+            await ws.ws_manager.broadcast_to_user(user_id, {
+                "type": "state",
+                "payload": {"chamber_no": chamber_no, "state": ChamberState.FAILED}
+            })
+            await ws.ws_manager.broadcast_to_user(user_id, {
+                "type": "result",
+                "payload": {
+                    "passed": False,
+                    "state": ChamberState.FAILED,
+                    "chamber_no": chamber_no,
+                    "error": msg,
+                    "reason": reason,
+                    "tests": [],
+                    "complexity": "Unknown (estimated)",
+                    "expected_complexity": "O(n)",
+                    "inefficient": False,
+                    "cleanliness": 0,
+                    "findings": findings,
+                    "security_flags": pre.get("security_flags", [])
+                }
+            })
+            return
+
+        # Step 3: Fetch active challenge details
+        st = get_or_init_user_chamber_state(user_id, chamber_no)
+        challenge_id = st.get("challenge_id")
+        challenge = None
+        ch_def = get_chamber_definition(chamber_no)
+        if ch_def:
+            for c in ch_def.get("challenges", []):
+                if c.get("id") == challenge_id:
+                    challenge = c
+                    break
+            if challenge is None and ch_def.get("challenges"):
+                challenge = ch_def["challenges"][0]
+
+        if not challenge:
+            challenge = {
+                "entry_point": "solution",
+                "hidden_tests": [],
+                "expected_complexity": "O(n)"
+            }
+
+        entry_point = challenge.get("entry_point", "solution")
+        hidden_tests = challenge.get("hidden_tests", [])
+        expected_complexity = challenge.get("expected_complexity", "O(n)")
+
+        await ws.ws_manager.broadcast_to_user(user_id, {
+            "type": "judging",
+            "payload": {
+                "message": f"NEXUS Sandbox: Executing {len(hidden_tests)} hidden test vectors...",
+                "chamber_no": chamber_no
+            }
+        })
+
+        # Step 4: Build program with harness & prepare batch for Judge0
+        program_code = harness.build_program(code, entry_point)
+        submissions = []
+        for test in hidden_tests:
+            stdin_json = harness.prepare_test_stdin(test.get("input"))
+            submissions.append({
+                "source_code": program_code,
+                "stdin": stdin_json,
+                "cpu_time_limit": 2.0,
+                "memory_limit": 128000
+            })
+
+        judge_results = await judge0.execute_batch(submissions)
+
+        # Step 5: Evaluate test results
+        tests_summary = []
+        total_time_ms = 0
+        all_passed = True if len(hidden_tests) > 0 else False
+
+        for idx, test in enumerate(hidden_tests):
+            j_res = judge_results[idx] if idx < len(judge_results) else {
+                "status": "internal_error", "time_ms": 0, "stdout": "", "error_message": ""
+            }
+            t_time = j_res.get("time_ms", 0)
+            total_time_ms += t_time
+
+            parsed = harness.parse_harness_output(j_res.get("stdout", ""))
+
+            if j_res.get("status") == "passed":
+                if parsed.get("found") and not parsed.get("error"):
+                    is_correct = harness.compare_results(parsed.get("result"), test.get("output"))
+                    test_status = "passed" if is_correct else "wrong_answer"
+                elif parsed.get("error"):
+                    test_status = "runtime_error"
+                else:
+                    test_status = "wrong_answer"
+            else:
+                test_status = j_res.get("status", "internal_error")
+
+            if test_status != "passed":
+                all_passed = False
+
+            # Hard security rule: never expose hidden test inputs or outputs
+            tests_summary.append({
+                "id": idx + 1,
+                "status": test_status,
+                "time_ms": t_time
+            })
+
+        # Step 6: AST Evaluator
+        ast_eval = evaluator.evaluate_code_ast(code, expected_complexity)
+        complexity = ast_eval["complexity_estimate"]
+        inefficient = ast_eval["inefficient"]
+        cleanliness = ast_eval["cleanliness"]
+        findings = ast_eval["findings"]
+
+        # Step 7: Transition Chamber State
+        # PASSED means every hidden test passed. Inefficiency does not fail a Chamber.
+        target_state = ChamberState.PASSED if all_passed else ChamberState.FAILED
+
+        database.update_latest_chamber_attempt(
+            user_id=user_id,
+            chamber_no=chamber_no,
+            passed=all_passed,
+            runtime_ms=total_time_ms,
+            complexity_label=complexity,
+            cleanliness_score=cleanliness
+        )
+
+        set_chamber_state(user_id, chamber_no, target_state)
+
+        # Step 8: Push WS state and result events
+        await ws.ws_manager.broadcast_to_user(user_id, {
+            "type": "state",
+            "payload": {"chamber_no": chamber_no, "state": target_state}
+        })
+
+        await ws.ws_manager.broadcast_to_user(user_id, {
+            "type": "result",
+            "payload": {
+                "passed": all_passed,
+                "state": target_state,
+                "chamber_no": chamber_no,
+                "tests": tests_summary,
+                "complexity": complexity,
+                "expected": expected_complexity,
+                "inefficient": inefficient,
+                "cleanliness": cleanliness,
+                "findings": findings
+            }
+        })
+
+    except Exception as e:
+        print(f"Error in chamber submission pipeline: {e}")
+        try:
+            curr_st = get_or_init_user_chamber_state(user_id, chamber_no)
+            if curr_st["state"] == ChamberState.ACTIVE:
+                set_chamber_state(user_id, chamber_no, ChamberState.EVALUATING)
+            set_chamber_state(user_id, chamber_no, ChamberState.FAILED)
+            await ws.ws_manager.broadcast_to_user(user_id, {
+                "type": "result",
+                "payload": {
+                    "passed": False,
+                    "state": ChamberState.FAILED,
+                    "chamber_no": chamber_no,
+                    "error": "Execution pipeline encountered an internal error.",
+                    "tests": [],
+                    "complexity": "Unknown (estimated)",
+                    "expected": "O(n)",
+                    "inefficient": False,
+                    "cleanliness": 0,
+                    "findings": []
+                }
+            })
+        except Exception:
+            pass
