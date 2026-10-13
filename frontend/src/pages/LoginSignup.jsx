@@ -20,9 +20,12 @@ export default function LoginSignup() {
       }
     } catch (err) {
       console.error("GitHub auth error:", err);
+      const isNetErr = err.message === "Network Error" || err.code === "ERR_NETWORK";
       setError(
         err.response?.data?.detail ||
-        err.message ||
+        (isNetErr
+          ? "NEXUS Core backend is waking up or still deploying on Render. Please wait 30-60 seconds and click Retry."
+          : err.message) ||
         "Failed to initialize GitHub OAuth bridge. Ensure backend is running."
       );
       setLoading(false);

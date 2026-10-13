@@ -44,11 +44,22 @@ app = FastAPI(title="NEXUS: CODE AWAKENING")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https://.*\.onrender\.com|http://(localhost|127\.0\.0\.1):\d+",
+    allow_origin_regex=r".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Root & Health check routes for Render liveness probes
+@app.get("/")
+@app.get("/health")
+def health_check():
+    return {
+        "status": "online",
+        "app": "NEXUS: CODE AWAKENING",
+        "version": "1.0.0",
+        "demo_mode": DEMO_MODE,
+    }
 
 # Security Headers Middleware
 @app.middleware("http")
