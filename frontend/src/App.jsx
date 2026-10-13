@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Safehouse from "./pages/Safehouse";
 import Construct from "./pages/Construct";
 import Chambers from "./pages/Chambers";
+import ChamberRun from "./pages/ChamberRun";
 import Matrix from "./pages/Matrix";
 import UploadResume from "./pages/UploadResume";
 import Intro from "./pages/Intro";
@@ -45,6 +46,7 @@ function AuthenticatedApp({ currentUser, onLogout, onOnboardingComplete, onIntro
             <Route path="/safehouse" element={<Safehouse />} />
             <Route path="/safehouse/construct" element={<Construct />} />
             <Route path="/chambers" element={<Chambers />} />
+            <Route path="/chambers/:chamberNo" element={<ChamberRun currentUser={currentUser} />} />
             <Route path="/matrix" element={<Matrix currentUser={currentUser} />} />
             <Route path="/profile" element={<Profile currentUser={currentUser} />} />
             <Route path="/intro" element={<Intro onIntroComplete={onIntroComplete} />} />

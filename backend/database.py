@@ -7,8 +7,10 @@ from datetime import datetime, timedelta
 DB_PATH = 'career_sapling.db'
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     cursor = conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=30000")
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS profiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -160,6 +162,25 @@ def init_db():
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_chamber_attempts_user_chamber
         ON chamber_attempts (user_id, chamber_no)
+    ''')
+
+    # Chamber State Machine Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chamber_state (
+            user_id INTEGER,
+            chamber_no INTEGER,
+            state TEXT DEFAULT 'LOCKED',
+            challenge_id TEXT,
+            started_at DATETIME,
+            deadline_at DATETIME,
+            attempts INTEGER DEFAULT 0,
+            PRIMARY KEY (user_id, chamber_no),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_chamber_state_user
+        ON chamber_state (user_id)
     ''')
 
     # ARIA Hint Ladder Tracking Table

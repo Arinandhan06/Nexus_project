@@ -341,6 +341,133 @@ def aria_history_endpoint(
         "hint_level": hint_level
     }
 
+# --- CHAMBER ENGINE & WEBSOCKET ENDPOINTS (Phase 5) ---
+import chamber_engine
+import ws
+from typing import List, Optional
+from fastapi import WebSocket, WebSocketDisconnect
+from models import (
+    ChamberSummary,
+    EnterChamberResponse,
+    CurrentChamberResponse,
+    ChamberSubmitRequest,
+    ChamberSubmitResponse,
+    TicketResponse
+)
+
+@app.get("/chambers", response_model=List[ChamberSummary])
+def get_chambers_endpoint(current_user: dict = Depends(get_current_user)):
+    return chamber_engine.get_all_user_chambers(current_user["id"])
+
+@app.post("/chambers/{chamber_no}/prepare")
+async def prepare_chamber_endpoint(
+    chamber_no: int,
+    current_user: dict = Depends(get_current_user)
+):
+    if chamber_no < 1 or chamber_no > 6:
+        raise HTTPException(status_code=400, detail="Chamber number must be between 1 and 6.")
+    try:
+        st = chamber_engine.get_or_init_user_chamber_state(current_user["id"], chamber_no)
+        if st["state"] == chamber_engine.ChamberState.UNLOCKED:
+            updated = chamber_engine.set_chamber_state(
+                user_id=current_user["id"],
+                chamber_no=chamber_no,
+                target_state=chamber_engine.ChamberState.PREPARING
+            )
+            await ws.ws_manager.broadcast_to_user(current_user["id"], {
+                "type": "state",
+                "payload": {"chamber_no": chamber_no, "state": updated["state"]}
+            })
+            return updated
+        return st
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/chambers/{chamber_no}/enter", response_model=EnterChamberResponse)
+async def enter_chamber_endpoint(
+    chamber_no: int,
+    current_user: dict = Depends(get_current_user)
+):
+    if chamber_no < 1 or chamber_no > 6:
+        raise HTTPException(status_code=400, detail="Chamber number must be between 1 and 6.")
+    try:
+        res = chamber_engine.enter_chamber(current_user["id"], chamber_no)
+        await ws.ws_manager.broadcast_to_user(current_user["id"], {
+            "type": "state",
+            "payload": {"chamber_no": chamber_no, "state": res["state"]}
+        })
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/chambers/{chamber_no}/current", response_model=CurrentChamberResponse)
+def get_current_chamber_endpoint(
+    chamber_no: int,
+    current_user: dict = Depends(get_current_user)
+):
+    if chamber_no < 1 or chamber_no > 6:
+        raise HTTPException(status_code=400, detail="Chamber number must be between 1 and 6.")
+    return chamber_engine.get_current_chamber_info(current_user["id"], chamber_no)
+
+@app.post("/chambers/{chamber_no}/submit", response_model=ChamberSubmitResponse)
+async def submit_chamber_endpoint(
+    chamber_no: int,
+    payload: ChamberSubmitRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    if chamber_no < 1 or chamber_no > 6:
+        raise HTTPException(status_code=400, detail="Chamber number must be between 1 and 6.")
+    try:
+        result = chamber_engine.record_chamber_submission(
+            user_id=current_user["id"],
+            chamber_no=chamber_no,
+            code=payload.code,
+            language=payload.language
+        )
+        await ws.ws_manager.broadcast_to_user(current_user["id"], {
+            "type": "state",
+            "payload": {"chamber_no": chamber_no, "state": result["state"]}
+        })
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/ws/ticket", response_model=TicketResponse)
+def get_ws_ticket_endpoint(current_user: dict = Depends(get_current_user)):
+    ticket = ws.create_ws_ticket(current_user["id"], ttl_seconds=30)
+    return {"ticket": ticket, "expires_in": 30}
+
+@app.websocket("/ws/chamber")
+async def websocket_chamber_endpoint(
+    websocket: WebSocket,
+    ticket: Optional[str] = None
+):
+    param_ticket = ticket or websocket.query_params.get("ticket")
+    user_id = ws.validate_and_consume_ticket(param_ticket)
+    if user_id is None:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await ws.ws_manager.connect(user_id, websocket)
+    try:
+        chambers_overview = chamber_engine.get_all_user_chambers(user_id)
+        await websocket.send_json({
+            "type": "state",
+            "payload": {"chambers": chambers_overview}
+        })
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        ws.ws_manager.disconnect(user_id, websocket)
+    except Exception:
+        ws.ws_manager.disconnect(user_id, websocket)
+
 class UpdateProjectsRequest(BaseModel):
     projects: list
 

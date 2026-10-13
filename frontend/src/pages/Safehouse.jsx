@@ -1,5 +1,4 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Shield,
   FolderCode,
@@ -8,14 +7,42 @@ import {
   ArrowRight,
   Sparkles,
   Lock,
-  Cpu
+  Cpu,
+  Play
 } from "lucide-react";
 import { NexusPanel, NexusButton, StatBadge, GlitchText } from "../components/nexus";
 import SecureComms from "../components/nexus/SecureComms";
 
 export default function Safehouse() {
+  const [searchParams] = useSearchParams();
+  const chamberNo = searchParams.get("chamber");
+
   return (
     <div className="min-h-full w-full p-4 sm:p-6 lg:p-8 flex flex-col space-y-8 bg-transparent text-gray-200">
+      {/* Active Chamber Briefing Banner if preparing */}
+      {chamberNo && (
+        <div className="p-4 bg-cyan-950/40 border border-cyan-500/40 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+              <Play size={20} />
+            </div>
+            <div>
+              <div className="text-xs font-mono text-cyan-400 uppercase tracking-widest">
+                PREPARATION PROTOCOL ACTIVE // CHAMBER {chamberNo}
+              </div>
+              <div className="text-sm font-semibold text-white">
+                Review algorithms in the Construct or ask ARIA for strategic guidance before initiating trial.
+              </div>
+            </div>
+          </div>
+          <Link to={`/chambers/${chamberNo}`} className="shrink-0">
+            <NexusButton variant="cyan" size="md" icon={Play} iconPosition="left">
+              Enter Chamber {chamberNo}
+            </NexusButton>
+          </Link>
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-zinc-800">
         <div>

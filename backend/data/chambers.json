@@ -1,0 +1,371 @@
+[
+  {
+    "chamber_no": 1,
+    "theme": "The Flood",
+    "story_title": "Sector 01: Sluice Gate Breach",
+    "description": "Rising subterranean floodwaters threaten lower server banks. Calibrate water drainage barriers using two pointers and array optimization before telemetry goes dark.",
+    "challenges": [
+      {
+        "id": "ch1-drainage-barrier",
+        "chamber_no": 1,
+        "title": "Drainage Barrier Containment",
+        "story": "The storm runoff has breached District 4. You must pair opposite floodwalls to form maximum water storage basins without overflowing the municipal pump line.",
+        "statement": "Given an integer array height of length n where each element represents a barrier height, find two barriers that together with the reservoir floor contain the maximum amount of water. Return the maximum containment capacity.",
+        "constraints": [
+          "2 <= height.length <= 10^5",
+          "0 <= height[i] <= 10^4"
+        ],
+        "starter_code": "def max_containment(height: list[int]) -> int:\n    # Return maximum water capacity contained between two barriers\n    pass\n",
+        "time_limit_seconds": 1200,
+        "expected_complexity": "O(n)",
+        "public_examples": [
+          {
+            "input": "height = [1,8,6,2,5,4,8,3,7]",
+            "output": "49",
+            "explanation": "Barriers at index 1 and index 8 form area min(8, 7) * (8 - 1) = 49."
+          },
+          {
+            "input": "height = [1,1]",
+            "output": "1"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "[1,2,1]",
+            "output": "2"
+          },
+          {
+            "input": "[4,3,2,1,4]",
+            "output": "16"
+          }
+        ]
+      },
+      {
+        "id": "ch1-pressure-indices",
+        "chamber_no": 1,
+        "title": "Pressure Sensor Triangulation",
+        "story": "Hydrostatic pressure sensors across the subterranean pipeline report noisy values. Identify the unique pair of sensor nodes whose sum equals the critical threshold target.",
+        "statement": "Given an array of integers sensors and an integer target, return the 0-indexed positions of the two sensors that sum to target. Exactly one solution exists; you may not use the same sensor twice.",
+        "constraints": [
+          "2 <= sensors.length <= 10^4",
+          "-10^9 <= sensors[i] <= 10^9",
+          "-10^9 <= target <= 10^9"
+        ],
+        "starter_code": "def triangulate_sensors(sensors: list[int], target: int) -> list[int]:\n    # Return [idx1, idx2] of the two sensors that sum to target\n    pass\n",
+        "time_limit_seconds": 1500,
+        "expected_complexity": "O(n)",
+        "public_examples": [
+          {
+            "input": "sensors = [2,7,11,15], target = 9",
+            "output": "[0,1]"
+          },
+          {
+            "input": "sensors = [3,2,4], target = 6",
+            "output": "[1,2]"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "sensors = [3,3], target = 6",
+            "output": "[0,1]"
+          },
+          {
+            "input": "sensors = [1,5,9,14], target = 15",
+            "output": "[0,3]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "chamber_no": 2,
+    "theme": "The Blackout",
+    "story_title": "Sector 02: Grid Frequency Collapse",
+    "description": "High-voltage relays are tripping across the northern grid in cascading failure. Parse alternating command packets and track voltage spikes using stack and queue buffers.",
+    "challenges": [
+      {
+        "id": "ch2-packet-brackets",
+        "chamber_no": 2,
+        "title": "Substation Control Protocol",
+        "story": "Emergency commands are streaming over noisy serial buses. Verify that the nesting sequence of switch toggles and breakers is completely balanced and corruption-free.",
+        "statement": "Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the power packet is valid. Open brackets must be closed by the same type in proper reverse order.",
+        "constraints": [
+          "1 <= s.length <= 10^4",
+          "s consists solely of parentheses '()[]{}'"
+        ],
+        "starter_code": "def validate_packet(s: str) -> bool:\n    # Return True if all brackets close in correct sequential order\n    pass\n",
+        "time_limit_seconds": 1200,
+        "expected_complexity": "O(n)",
+        "public_examples": [
+          {
+            "input": "s = \"()[]{}\"",
+            "output": "true"
+          },
+          {
+            "input": "s = \"([)]\"",
+            "output": "false"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "s = \"{[]}\"",
+            "output": "true"
+          },
+          {
+            "input": "s = \"[\"",
+            "output": "false"
+          }
+        ]
+      },
+      {
+        "id": "ch2-voltage-window",
+        "chamber_no": 2,
+        "title": "Sliding Voltage Spikes",
+        "story": "Surge dampeners need to know the peak voltage in every moving time window of size k across the main transformer feeder lines.",
+        "statement": "You are given an array of integers voltages and a sliding window size k. Return the maximum voltage in each consecutive sliding window moving from left to right.",
+        "constraints": [
+          "1 <= voltages.length <= 10^5",
+          "1 <= k <= voltages.length",
+          "-10^4 <= voltages[i] <= 10^4"
+        ],
+        "starter_code": "def max_sliding_voltage(voltages: list[int], k: int) -> list[int]:\n    # Return the maximum in each window of size k in O(n) time\n    pass\n",
+        "time_limit_seconds": 1800,
+        "expected_complexity": "O(n)",
+        "public_examples": [
+          {
+            "input": "voltages = [1,3,-1,-3,5,3,6,7], k = 3",
+            "output": "[3,3,5,5,6,7]"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "voltages = [1], k = 1",
+            "output": "[1]"
+          },
+          {
+            "input": "voltages = [9,11], k = 2",
+            "output": "[11]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "chamber_no": 3,
+    "theme": "The Gridlock",
+    "story_title": "Sector 03: Automated Transit Paralysis",
+    "description": "Autonomous maglev conduits have deadlocked in the metropolitan loop. Navigate network topologies, find shortest unjammed escape paths, and identify isolated transit sectors.",
+    "challenges": [
+      {
+        "id": "ch3-transit-clusters",
+        "chamber_no": 3,
+        "title": "Subway Zone Connectivity",
+        "story": "Signals are down across the downtown subway map. Given an m x n grid representing functional rail terminals ('1') and collapsed track tunnels ('0'), identify the number of isolated operating clusters.",
+        "statement": "Given an m x n 2D binary grid where '1' represents accessible tracks and '0' represents water/collapsed tunnel, return the total count of connected rail clusters (4-directionally adjacent).",
+        "constraints": [
+          "m == grid.length, n == grid[i].length",
+          "1 <= m, n <= 300",
+          "grid[i][j] is '0' or '1'"
+        ],
+        "starter_code": "def count_transit_clusters(grid: list[list[str]]) -> int:\n    # Return number of connected rail clusters\n    pass\n",
+        "time_limit_seconds": 1500,
+        "expected_complexity": "O(m*n)",
+        "public_examples": [
+          {
+            "input": "grid = [[\"1\",\"1\",\"0\"],[\"1\",\"1\",\"0\"],[\"0\",\"0\",\"1\"]]",
+            "output": "2"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "grid = [[\"1\",\"0\"],[\"0\",\"1\"]]",
+            "output": "2"
+          },
+          {
+            "input": "grid = [[\"0\",\"0\"],[\"0\",\"0\"]]",
+            "output": "0"
+          }
+        ]
+      },
+      {
+        "id": "ch3-shortest-bypass",
+        "chamber_no": 3,
+        "title": "Signal Route Optimization",
+        "story": "Route the emergency repair bot from the northern junction (0, 0) to southern dispatch (n-1, n-1) along unblocked transit corridors in minimal steps.",
+        "statement": "Given an n x n integer matrix where 0 represents open rails and 1 represents derailed trains, return the length of the shortest clear path from top-left to bottom-right (8-directional). If no path exists, return -1.",
+        "constraints": [
+          "n == grid.length == grid[i].length",
+          "1 <= n <= 100",
+          "grid[i][j] is 0 or 1"
+        ],
+        "starter_code": "def shortest_clear_path(grid: list[list[int]]) -> int:\n    # Return length of shortest 8-directional clear route or -1\n    pass\n",
+        "time_limit_seconds": 1800,
+        "expected_complexity": "O(n^2)",
+        "public_examples": [
+          {
+            "input": "grid = [[0,1],[1,0]]",
+            "output": "2"
+          },
+          {
+            "input": "grid = [[0,0,0],[1,1,0],[1,1,0]]",
+            "output": "4"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "grid = [[1,0],[0,0]]",
+            "output": "-1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "chamber_no": 4,
+    "theme": "The Signal",
+    "story_title": "Sector 04: Broadcast Jammer Overdrive",
+    "description": "An adversarial jamming broadcast is modulating citywide communications. Decode compressed packets and compute maximum throughput bandwidth using dynamic programming.",
+    "challenges": [
+      {
+        "id": "ch4-frequency-climbing",
+        "chamber_no": 4,
+        "title": "Broadcast Frequency Hopping",
+        "story": "To evade the jammer, transmitter amplifiers must hop across n frequency steps, jumping 1 or 2 channels at a time. Calculate the number of distinct hopping combinations to reach channel n.",
+        "statement": "You are hopping across n radio channels. At each transmission hop, you can advance by 1 or 2 channels. In how many distinct sequences can you reach channel n?",
+        "constraints": [
+          "1 <= n <= 45"
+        ],
+        "starter_code": "def count_frequency_hops(n: int) -> int:\n    # Return total distinct hop combinations to reach channel n\n    pass\n",
+        "time_limit_seconds": 1200,
+        "expected_complexity": "O(n)",
+        "public_examples": [
+          {
+            "input": "n = 2",
+            "output": "2"
+          },
+          {
+            "input": "n = 3",
+            "output": "3"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "n = 5",
+            "output": "8"
+          },
+          {
+            "input": "n = 10",
+            "output": "89"
+          }
+        ]
+      },
+      {
+        "id": "ch4-coin-denominations",
+        "chamber_no": 4,
+        "title": "Bandwidth Packet Modulation",
+        "story": "Compress target telemetry payload amount into the absolute minimum number of fixed carrier packet sizes.",
+        "statement": "You are given an integer array packets representing available packet capacities and an integer amount representing required payload data. Return the fewest number of packets needed to total amount. If it cannot be formed, return -1.",
+        "constraints": [
+          "1 <= packets.length <= 12",
+          "1 <= packets[i] <= 2^31 - 1",
+          "0 <= amount <= 10^4"
+        ],
+        "starter_code": "def min_packets_needed(packets: list[int], amount: int) -> int:\n    # Return fewest packet sizes needed or -1\n    pass\n",
+        "time_limit_seconds": 1800,
+        "expected_complexity": "O(packets * amount)",
+        "public_examples": [
+          {
+            "input": "packets = [1,2,5], amount = 11",
+            "output": "3",
+            "explanation": "5 + 5 + 1 = 11 using 3 packets."
+          },
+          {
+            "input": "packets = [2], amount = 3",
+            "output": "-1"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "packets = [1], amount = 0",
+            "output": "0"
+          },
+          {
+            "input": "packets = [186,419,83,408], amount = 6249",
+            "output": "20"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "chamber_no": 5,
+    "theme": "The Vault",
+    "story_title": "Sector 05: Central Cyber-Depository",
+    "description": "NEXUS Core encryption keys are guarded inside the cyber-depository tree hierarchy. Crack root key checksums and query highest-priority emergency keys using binary search and heaps.",
+    "challenges": [
+      {
+        "id": "ch5-root-inversion",
+        "chamber_no": 5,
+        "title": "Hierarchical Key Inversion",
+        "story": "The vault cryptographic directory is corrupted in mirrored binary format. Reverse the entire left and right pointer hierarchy to realign the primary master key.",
+        "statement": "Given a binary tree representation represented as a dictionary {val, left, right} (or None), invert the tree so that every node's left and right children are swapped recursively, and return the root.",
+        "constraints": [
+          "Number of nodes between 0 and 100",
+          "-100 <= Node.val <= 100"
+        ],
+        "starter_code": "def invert_key_tree(root: dict | None) -> dict | None:\n    # Invert binary tree node dicts with 'val', 'left', 'right'\n    pass\n",
+        "time_limit_seconds": 1500,
+        "expected_complexity": "O(n)",
+        "public_examples": [
+          {
+            "input": "root = {\"val\": 4, \"left\": {\"val\": 2, \"left\": None, \"right\": None}, \"right\": {\"val\": 7, \"left\": None, \"right\": None}}",
+            "output": "{\"val\": 4, \"left\": {\"val\": 7, \"left\": None, \"right\": None}, \"right\": {\"val\": 2, \"left\": None, \"right\": None}}"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "root = None",
+            "output": "None"
+          }
+        ]
+      },
+      {
+        "id": "ch5-kth-priority-key",
+        "chamber_no": 5,
+        "title": "Kth Priority Security Key",
+        "story": "The vault lockout countdown demands the k-th highest clearance code from an unsorted stream of security tokens.",
+        "statement": "Given an integer array keys and an integer k, return the kth largest clearance token in the array without performing a full O(n log n) sort.",
+        "constraints": [
+          "1 <= k <= keys.length <= 10^5",
+          "-10^4 <= keys[i] <= 10^4"
+        ],
+        "starter_code": "def find_kth_clearance(keys: list[int], k: int) -> int:\n    # Return the kth largest element in keys\n    pass\n",
+        "time_limit_seconds": 1800,
+        "expected_complexity": "O(n log k) or O(n)",
+        "public_examples": [
+          {
+            "input": "keys = [3,2,1,5,6,4], k = 2",
+            "output": "5"
+          },
+          {
+            "input": "keys = [3,2,3,1,2,4,5,5,6], k = 4",
+            "output": "4"
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "keys = [1], k = 1",
+            "output": "1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "chamber_no": 6,
+    "theme": "Final Adversarial Interview",
+    "story_title": "Sector 06: NEXUS Nexus Singularity",
+    "description": "The Final Adversarial Interview against the unconstrained NEXUS Core. Built in Phase 9.",
+    "challenges": []
+  }
+]
