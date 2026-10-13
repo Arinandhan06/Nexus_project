@@ -123,17 +123,21 @@ async def github_callback(request: Request, code: Optional[str] = None, state: O
 
     client_id = os.getenv("GITHUB_CLIENT_ID") or DEFAULT_GITHUB_CLIENT_ID
     client_secret = os.getenv("GITHUB_CLIENT_SECRET") or DEFAULT_GITHUB_CLIENT_SECRET
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
-
-    # If the user reached this callback via 127.0.0.1, match the frontend redirect to 127.0.0.1
+    # Determine frontend redirect target
     req_host = getattr(request.url, "hostname", "")
-    if req_host == "127.0.0.1" and "localhost:5173" in frontend_url:
-        frontend_url = frontend_url.replace("localhost", "127.0.0.1")
-    elif req_host not in ("127.0.0.1", "localhost", ""):
-        # Running in cloud (e.g. Render backend), redirect back to Vercel production frontend
-        configured_frontend = os.getenv("FRONTEND_URL", "")
-        if not configured_frontend or "localhost" in configured_frontend or "127.0.0.1" in configured_frontend:
+    frontend_env = os.getenv("FRONTEND_URL", "").strip()
+
+    if req_host in ("127.0.0.1", "localhost", "testserver", ""):
+        frontend_url = frontend_env if frontend_env.startswith("http") else "http://localhost:5173"
+        if req_host == "127.0.0.1" and "localhost:5173" in frontend_url:
+            frontend_url = frontend_url.replace("localhost", "127.0.0.1")
+    else:
+        # Running in cloud (e.g. Render backend)
+        # If unset, localhost, or Render internal service format (e.g. "nexus-frontend-6ly9"):
+        if not frontend_env or "localhost" in frontend_env or "127.0.0.1" in frontend_env or not frontend_env.startswith("http"):
             frontend_url = "https://nexus-project-livid.vercel.app"
+        else:
+            frontend_url = frontend_env.rstrip("/")
 
     # Exchange code for access token with GitHub
     token_url = "https://github.com/login/oauth/access_token"

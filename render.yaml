@@ -21,10 +21,7 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: nexus-frontend
-          property: host
+        value: https://nexus-project-livid.vercel.app
       - key: GITHUB_CLIENT_ID
         value: Ov23liBNJ2cHPGunM61D
       - key: GITHUB_CLIENT_SECRET
