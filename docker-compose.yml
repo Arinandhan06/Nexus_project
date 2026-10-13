@@ -1,0 +1,15 @@
+services:
+  nexus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+      - "5173:8000"
+    environment:
+      - PORT=8000
+      - DEMO_MODE=true
+      - MOCK_EXTERNALS=true
+      - ENCRYPTION_KEY=0123456789abcdef0123456789abcdef
+      - SESSION_SECRET=production_ready_nexus_session_secret_token
+    restart: unless-stopped

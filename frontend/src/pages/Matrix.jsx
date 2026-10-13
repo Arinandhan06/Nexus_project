@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import api from "../lib/api";
 import { NexusPanel, NexusButton, StatBadge, GlitchText } from "../components/nexus";
+import { ChamberWebSocketClient } from "../lib/ws";
 
 const CATEGORY_ICONS = {
   "Data Structures & Algorithms": Activity,
@@ -40,9 +41,32 @@ const CATEGORY_ICONS = {
   "Tools": Wrench
 };
 
+function DeltaBadge({ delta }) {
+  if (delta === null || delta === undefined) return null;
+  const isPos = delta > 0;
+  const isNeg = delta < 0;
+  const text = isPos ? `+${delta}` : isNeg ? `${delta}` : `0`;
+  const badgeStyle = isPos
+    ? "bg-emerald-950/70 border-emerald-500/50 text-emerald-300"
+    : isNeg
+    ? "bg-red-950/70 border-red-500/50 text-red-300"
+    : "bg-zinc-900 border-zinc-800 text-zinc-500";
+
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${badgeStyle}`}
+      title={`Delta: ${text}`}
+    >
+      {text}
+    </span>
+  );
+}
+
 export default function Matrix({ currentUser }) {
   const navigate = useNavigate();
   const [matrix, setMatrix] = useState({ dsa: 0, system_design: 0, cleanliness: 0 });
+  const [previousMatrix, setPreviousMatrix] = useState(null);
+  const [deltas, setDeltas] = useState({ dsa: 0, system_design: 0, cleanliness: 0 });
   const [skillTree, setSkillTree] = useState({});
   const [weaknesses, setWeaknesses] = useState([]);
   const [schedule, setSchedule] = useState([]);
@@ -58,15 +82,37 @@ export default function Matrix({ currentUser }) {
     let isMounted = true;
     const fetchMatrixData = async () => {
       try {
-        const [resMatrix, resTree, resSched] = await Promise.allSettled([
+        const [resMatrix, resTree, resSched, resHist] = await Promise.allSettled([
           api.get("/profile/matrix"),
           api.get("/profile/skill-tree"),
-          api.get("/profile/schedule")
+          api.get("/profile/schedule"),
+          api.get("/profile/matrix/history?limit=2&offset=0")
         ]);
 
         if (isMounted) {
           if (resMatrix.status === "fulfilled" && resMatrix.value.data) {
             setMatrix(resMatrix.value.data);
+          }
+          if (resHist.status === "fulfilled" && resHist.value.data?.items) {
+            const items = resHist.value.data.items;
+            if (items.length >= 2) {
+              setPreviousMatrix({
+                dsa: items[1].dsa,
+                system_design: items[1].system_design,
+                cleanliness: items[1].cleanliness
+              });
+              setDeltas({
+                dsa: items[0].dsa - items[1].dsa,
+                system_design: items[0].system_design - items[1].system_design,
+                cleanliness: items[0].cleanliness - items[1].cleanliness
+              });
+            } else if (items.length === 1) {
+              setDeltas({
+                dsa: items[0].dsa,
+                system_design: items[0].system_design,
+                cleanliness: items[0].cleanliness
+              });
+            }
           }
           if (resTree.status === "fulfilled" && resTree.value.data) {
             const data = resTree.value.data;
@@ -93,6 +139,28 @@ export default function Matrix({ currentUser }) {
     };
   }, []);
 
+  // Live WebSocket progress synchronization (SCRUM-26, SCRUM-27)
+  useEffect(() => {
+    const client = new ChamberWebSocketClient({
+      onMessage: (msg) => {
+        if (msg.type === "progress" && msg.payload) {
+          const { matrix: incomingMatrix, deltas: incomingDeltas } = msg.payload;
+          if (incomingMatrix) {
+            setPreviousMatrix((prev) => prev ? { ...prev } : { ...matrix });
+            setMatrix(incomingMatrix);
+          }
+          if (incomingDeltas) {
+            setDeltas(incomingDeltas);
+          }
+        }
+      }
+    });
+    client.connect();
+    return () => {
+      client.disconnect();
+    };
+  }, [matrix]);
+
   const toggleCategory = (category) => {
     setExpandedCategories((prev) => ({
       ...prev,
@@ -108,9 +176,30 @@ export default function Matrix({ currentUser }) {
   };
 
   const radarData = [
-    { subject: "Data Structures & Algorithms", score: matrix.dsa || 0, fullMark: 100 },
-    { subject: "System Design", score: matrix.system_design || 0, fullMark: 100 },
-    { subject: "Code Cleanliness", score: matrix.cleanliness || 0, fullMark: 100 }
+    {
+      subject: "Data Structures & Algorithms",
+      key: "dsa",
+      score: matrix.dsa || 0,
+      prevScore: previousMatrix ? (previousMatrix.dsa || 0) : (matrix.dsa || 0),
+      delta: deltas.dsa || 0,
+      fullMark: 100
+    },
+    {
+      subject: "System Design",
+      key: "system_design",
+      score: matrix.system_design || 0,
+      prevScore: previousMatrix ? (previousMatrix.system_design || 0) : (matrix.system_design || 0),
+      delta: deltas.system_design || 0,
+      fullMark: 100
+    },
+    {
+      subject: "Code Cleanliness",
+      key: "cleanliness",
+      score: matrix.cleanliness || 0,
+      prevScore: previousMatrix ? (previousMatrix.cleanliness || 0) : (matrix.cleanliness || 0),
+      delta: deltas.cleanliness || 0,
+      fullMark: 100
+    }
   ];
 
   // Group schedule days by Chamber (1-6)
@@ -227,22 +316,47 @@ export default function Matrix({ currentUser }) {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
                           return (
-                            <div className="bg-zinc-900/95 border border-cyan-500/50 p-3 rounded-xl shadow-xl text-xs font-mono">
+                            <div className="bg-zinc-900/95 border border-cyan-500/50 p-3 rounded-xl shadow-xl text-xs font-mono space-y-1">
                               <p className="font-semibold text-cyan-400">{data.subject}</p>
-                              <p className="text-white mt-1">Calibrated Score: <span className="font-bold">{data.score}</span> / 60</p>
-                              <p className="text-zinc-500 text-[10px]">Resume Cap: 60/100</p>
+                              <p className="text-white">Live Score: <span className="font-bold">{data.score}</span> / 100</p>
+                              {data.delta !== undefined && (
+                                <p className="text-zinc-300 text-[11px]">
+                                  Delta: <span className={data.delta > 0 ? "text-emerald-400 font-bold" : data.delta < 0 ? "text-red-400 font-bold" : "text-zinc-500"}>
+                                    {data.delta > 0 ? `+${data.delta}` : data.delta}
+                                  </span>
+                                </p>
+                              )}
+                              {previousMatrix && (
+                                <p className="text-zinc-500 text-[10px]">Previous: {data.prevScore} / 100</p>
+                              )}
                             </div>
                           );
                         }
                         return null;
                       }}
                     />
+                    {previousMatrix && (
+                      <Radar
+                        name="Previous Baseline"
+                        dataKey="prevScore"
+                        stroke="#64748b"
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        fill="#64748b"
+                        fillOpacity={0.15}
+                        isAnimationActive={false}
+                      />
+                    )}
                     <Radar
                       name="Readiness Score"
                       dataKey="score"
                       stroke="#22d3ee"
+                      strokeWidth={2}
                       fill="#22d3ee"
                       fillOpacity={0.45}
+                      isAnimationActive={true}
+                      animationDuration={1000}
+                      animationEasing="ease-out"
                     />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -256,6 +370,7 @@ export default function Matrix({ currentUser }) {
                     <tr className="border-b border-zinc-800 text-zinc-400 uppercase tracking-wider">
                       <th className="py-3 px-4">Competency Dimension</th>
                       <th className="py-3 px-4">Calibrated Score</th>
+                      <th className="py-3 px-4">Delta (+/-)</th>
                       <th className="py-3 px-4">Ceiling</th>
                       <th className="py-3 px-4">Status</th>
                     </tr>
@@ -264,20 +379,23 @@ export default function Matrix({ currentUser }) {
                     <tr>
                       <td className="py-3 px-4 font-semibold text-white">Data Structures & Algorithms</td>
                       <td className="py-3 px-4 text-cyan-400 font-bold">{matrix.dsa} / 100</td>
-                      <td className="py-3 px-4 text-zinc-400">60 max</td>
-                      <td className="py-3 px-4 text-cyan-400">Calibrated</td>
+                      <td className="py-3 px-4"><DeltaBadge delta={deltas.dsa} /></td>
+                      <td className="py-3 px-4 text-zinc-400">100 max</td>
+                      <td className="py-3 px-4 text-cyan-400">Live Calibration</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-semibold text-white">System Design</td>
-                      <td className="py-3 px-4 text-cyan-400 font-bold">{matrix.system_design} / 100</td>
-                      <td className="py-3 px-4 text-zinc-400">60 max</td>
-                      <td className="py-3 px-4 text-cyan-400">Calibrated</td>
+                      <td className="py-3 px-4 text-purple-400 font-bold">{matrix.system_design} / 100</td>
+                      <td className="py-3 px-4"><DeltaBadge delta={deltas.system_design} /></td>
+                      <td className="py-3 px-4 text-zinc-400">100 max</td>
+                      <td className="py-3 px-4 text-purple-400">Live Calibration</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-semibold text-white">Code Cleanliness</td>
-                      <td className="py-3 px-4 text-cyan-400 font-bold">{matrix.cleanliness} / 100</td>
-                      <td className="py-3 px-4 text-zinc-400">60 max</td>
-                      <td className="py-3 px-4 text-cyan-400">Calibrated</td>
+                      <td className="py-3 px-4 text-emerald-400 font-bold">{matrix.cleanliness} / 100</td>
+                      <td className="py-3 px-4"><DeltaBadge delta={deltas.cleanliness} /></td>
+                      <td className="py-3 px-4 text-zinc-400">100 max</td>
+                      <td className="py-3 px-4 text-emerald-400">Exponential Avg</td>
                     </tr>
                   </tbody>
                 </table>
@@ -286,17 +404,26 @@ export default function Matrix({ currentUser }) {
 
             {/* Quick Stats Footer */}
             <div className="grid grid-cols-3 gap-3 pt-6 border-t border-zinc-800/80 text-center font-mono">
-              <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-                <p className="text-[10px] text-zinc-500 uppercase">DSA Score</p>
-                <p className="text-xl font-bold text-cyan-400 mt-0.5">{matrix.dsa}<span className="text-xs text-zinc-600">/60</span></p>
+              <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 flex flex-col justify-between">
+                <div className="flex items-center justify-between gap-1 w-full">
+                  <p className="text-[10px] text-zinc-500 uppercase">DSA</p>
+                  <DeltaBadge delta={deltas.dsa} />
+                </div>
+                <p className="text-xl font-bold text-cyan-400 mt-1">{matrix.dsa}<span className="text-xs text-zinc-600">/100</span></p>
               </div>
-              <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-                <p className="text-[10px] text-zinc-500 uppercase">System Design</p>
-                <p className="text-xl font-bold text-cyan-400 mt-0.5">{matrix.system_design}<span className="text-xs text-zinc-600">/60</span></p>
+              <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 flex flex-col justify-between">
+                <div className="flex items-center justify-between gap-1 w-full">
+                  <p className="text-[10px] text-zinc-500 uppercase">Sys Design</p>
+                  <DeltaBadge delta={deltas.system_design} />
+                </div>
+                <p className="text-xl font-bold text-purple-400 mt-1">{matrix.system_design}<span className="text-xs text-zinc-600">/100</span></p>
               </div>
-              <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
-                <p className="text-[10px] text-zinc-500 uppercase">Cleanliness</p>
-                <p className="text-xl font-bold text-cyan-400 mt-0.5">{matrix.cleanliness}<span className="text-xs text-zinc-600">/60</span></p>
+              <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 flex flex-col justify-between">
+                <div className="flex items-center justify-between gap-1 w-full">
+                  <p className="text-[10px] text-zinc-500 uppercase">Cleanliness</p>
+                  <DeltaBadge delta={deltas.cleanliness} />
+                </div>
+                <p className="text-xl font-bold text-emerald-400 mt-1">{matrix.cleanliness}<span className="text-xs text-zinc-600">/100</span></p>
               </div>
             </div>
           </NexusPanel>

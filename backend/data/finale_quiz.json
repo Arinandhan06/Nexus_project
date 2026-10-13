@@ -1,0 +1,37 @@
+[
+  {
+    "id": "q1",
+    "question": "What is the tight worst-case time complexity of this iterative binary search algorithm on an ordered list of length n?",
+    "code_snippet": "def binary_search(arr: list[int], target: int) -> int:\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1",
+    "options": ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
+    "correct_answer": "O(log n)"
+  },
+  {
+    "id": "q2",
+    "question": "What is the asymptotic time complexity of this naive recursive Fibonacci function for input n?",
+    "code_snippet": "def fib(n: int) -> int:\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)",
+    "options": ["O(log n)", "O(n)", "O(n^2)", "O(2^n)"],
+    "correct_answer": "O(2^n)"
+  },
+  {
+    "id": "q3",
+    "question": "What is the time complexity of the following nested iterative process as a function of n?",
+    "code_snippet": "def process_data(n: int) -> int:\n    ops = 0\n    for i in range(n):\n        j = n\n        while j > 1:\n            ops += 1\n            j //= 2\n    return ops",
+    "options": ["O(n)", "O(n log n)", "O(n^2)", "O(2^n)"],
+    "correct_answer": "O(n log n)"
+  },
+  {
+    "id": "q4",
+    "question": "For an n x n square matrix, what is the tight time complexity of this triangular cell scan?",
+    "code_snippet": "def scan_triangular(grid: list[list[int]]) -> int:\n    n = len(grid)\n    total = 0\n    for i in range(n):\n        for j in range(i, n):\n            total += grid[i][j]\n    return total",
+    "options": ["O(n)", "O(n log n)", "O(n^2)", "O(n^3)"],
+    "correct_answer": "O(n^2)"
+  },
+  {
+    "id": "q5",
+    "question": "What is the time complexity of generating the prefix accumulation array for an input of size n?",
+    "code_snippet": "def prefix_scan(arr: list[int]) -> list[int]:\n    n = len(arr)\n    res = [0] * (n + 1)\n    for i in range(n):\n        res[i + 1] = res[i] + arr[i]\n    return res",
+    "options": ["O(1)", "O(log n)", "O(n)", "O(n^2)"],
+    "correct_answer": "O(n)"
+  }
+]

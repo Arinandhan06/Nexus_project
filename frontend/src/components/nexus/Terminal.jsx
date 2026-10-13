@@ -19,14 +19,34 @@ export default function Terminal({
   chamberNo = 1,
   logs = [],
   connectionStatus = "connected", // 'connected' | 'connecting' | 'reconnecting' | 'disconnected'
-  result = null, // Phase 6: { passed, tests: [{id, status, time_ms}], complexity, expected, inefficient, cleanliness, findings, error }
+  result = null, // Phase 6: { passed, tests: [{id, status, time_ms, error}], complexity, expected, inefficient, cleanliness, findings, error }
+  runResult = null, // Public test run results: { all_passed, results: [{example_no, input, expected, actual, passed, status, time_ms, error}] }
   className = "",
   onClear,
 }) {
   const bottomRef = useRef(null);
   const [userTab, setUserTab] = useState(null);
   const [showFindings, setShowFindings] = useState(true);
-  const activeTab = userTab || (result ? "results" : "console");
+
+  // Auto-switch tab on new runResult or result props change
+  const [prevRunResult, setPrevRunResult] = useState(runResult);
+  const [prevResult, setPrevResult] = useState(result);
+
+  if (runResult !== prevRunResult) {
+    setPrevRunResult(runResult);
+    if (runResult) {
+      setUserTab("run");
+    }
+  }
+
+  if (result !== prevResult) {
+    setPrevResult(result);
+    if (result) {
+      setUserTab("results");
+    }
+  }
+
+  const activeTab = userTab || (runResult ? "run" : result ? "results" : "console");
 
   // Auto-scroll to bottom on new log entries if console tab active
   useEffect(() => {
@@ -159,6 +179,18 @@ export default function Terminal({
                 <span className={`w-1.5 h-1.5 rounded-full ${result.passed ? "bg-emerald-400" : "bg-red-400"}`} />
               )}
             </button>
+            <button
+              onClick={() => setUserTab("run")}
+              className={`px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                activeTab === "run" ? "bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/30" : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              <CheckCircle2 size={11} />
+              Test Run
+              {runResult && (
+                <span className={`w-1.5 h-1.5 rounded-full ${runResult.all_passed ? "bg-emerald-400" : "bg-red-400"}`} />
+              )}
+            </button>
           </div>
         </div>
 
@@ -253,17 +285,24 @@ export default function Terminal({
                     <span className="text-zinc-500">Judge0 Batch</span>
                   </div>
                   {result.tests && result.tests.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <div className="space-y-1.5 pt-1">
                       {result.tests.map((t) => (
                         <div
                           key={t.id}
-                          className="flex items-center justify-between px-2 py-1 bg-black/60 rounded border border-zinc-900 text-[11px]"
+                          className="p-1.5 bg-black/60 rounded border border-zinc-900 text-[11px] space-y-1"
                         >
-                          <span className="text-zinc-400">#{t.id}</span>
-                          <div className="flex items-center gap-1.5">
-                            {t.time_ms > 0 && <span className="text-[10px] text-zinc-500">{t.time_ms}ms</span>}
-                            {getTestStatusBadge(t.status)}
+                          <div className="flex items-center justify-between">
+                            <span className="text-zinc-400 font-semibold">Vector #{t.id}</span>
+                            <div className="flex items-center gap-1.5">
+                              {t.time_ms > 0 && <span className="text-[10px] text-zinc-500">{t.time_ms}ms</span>}
+                              {getTestStatusBadge(t.status)}
+                            </div>
                           </div>
+                          {t.error && (
+                            <div className="text-[10px] text-red-400 font-mono bg-red-950/40 p-1 rounded border border-red-500/30 break-all">
+                              {t.error}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -366,6 +405,106 @@ export default function Terminal({
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Test Run Panel (Run Tab) */}
+      {activeTab === "run" && (
+        <div className="flex-1 p-3.5 overflow-y-auto space-y-3.5 text-xs font-mono min-h-[180px] max-h-[300px] select-text">
+          {!runResult ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-500 space-y-2">
+              <CheckCircle2 size={24} className="text-zinc-600 animate-pulse" />
+              <div>Click [Run Code] in the top toolbar to test your solution against public examples.</div>
+            </div>
+          ) : (
+            <>
+              {/* Verdict Banner */}
+              <div
+                className={`p-3 rounded-lg border flex items-center justify-between ${
+                  runResult.all_passed
+                    ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-300"
+                    : "bg-red-950/30 border-red-500/40 text-red-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  {runResult.all_passed ? (
+                    <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+                  ) : (
+                    <XCircle size={18} className="text-red-400 shrink-0" />
+                  )}
+                  <div>
+                    <div className="font-bold tracking-wide uppercase">
+                      {runResult.all_passed ? "ALL PUBLIC EXAMPLES PASSED" : "PUBLIC TEST RUN FAILED"}
+                    </div>
+                    {runResult.error && (
+                      <div className="text-[11px] text-red-400 mt-0.5">{runResult.error}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block">
+                    EXAMPLES PASSED
+                  </span>
+                  <span className="text-sm font-extrabold font-mono">
+                    {runResult.results?.filter((r) => r.passed).length ?? 0} /{" "}
+                    {runResult.results?.length ?? 0}
+                  </span>
+                </div>
+              </div>
+
+              {/* Public Examples Test Cards */}
+              <div className="space-y-2">
+                {runResult.results?.map((ex) => (
+                  <div
+                    key={ex.example_no}
+                    className={`p-2.5 rounded-lg border text-xs font-mono space-y-1.5 ${
+                      ex.passed
+                        ? "bg-emerald-950/10 border-emerald-500/20"
+                        : "bg-red-950/20 border-red-500/30"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-zinc-300 font-bold">Example 0{ex.example_no}</span>
+                      <div className="flex items-center gap-2">
+                        {ex.time_ms > 0 && <span className="text-[10px] text-zinc-500">{ex.time_ms}ms</span>}
+                        {getTestStatusBadge(ex.status)}
+                      </div>
+                    </div>
+                    <div className="bg-black/60 p-2 rounded border border-zinc-900 space-y-1 text-[11px]">
+                      <div>
+                        <span className="text-zinc-500 select-none">Input: </span>
+                        <span className="text-zinc-200">{ex.input}</span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500 select-none">Expected: </span>
+                        <span className="text-emerald-300">{ex.expected}</span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500 select-none">Your Output: </span>
+                        <span className={ex.passed ? "text-emerald-300 font-bold" : "text-red-300 font-bold"}>
+                          {ex.actual ?? "None"}
+                        </span>
+                      </div>
+                      {ex.error && (
+                        <div className="text-red-400 bg-red-950/50 p-1.5 rounded border border-red-500/30 mt-1 break-all">
+                          <strong>Error:</strong> {ex.error}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Stdout if user used print() */}
+              {runResult.stdout && (
+                <div className="p-2.5 bg-black/60 rounded border border-zinc-900 text-xs font-mono space-y-1">
+                  <span className="text-[10px] text-zinc-500 uppercase font-bold">Standard Output:</span>
+                  <pre className="text-zinc-300 whitespace-pre-wrap">{runResult.stdout}</pre>
                 </div>
               )}
             </>

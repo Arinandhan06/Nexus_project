@@ -91,8 +91,8 @@ export default function LoginSignup() {
           </motion.div>
         )}
 
-        {/* Single Primary Action: Authenticate with GitHub */}
-        <div className="space-y-4">
+        {/* Primary Action: Authenticate with GitHub */}
+        <div className="space-y-3">
           <button
             type="button"
             onClick={handleGitHubAuth}
@@ -112,6 +112,17 @@ export default function LoginSignup() {
                 <ArrowRight size={16} />
               </>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              window.location.assign("/auth/callback#token=nexus_demo_token_8888");
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-mono text-xs tracking-wider text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 hover:bg-emerald-900/40 hover:border-emerald-500/60 transition-all cursor-pointer"
+          >
+            <ShieldCheck size={16} />
+            <span>ENTER AS DEMO CADET (CADET NOVA)</span>
           </button>
         </div>
 

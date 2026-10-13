@@ -76,6 +76,11 @@ export default function Chambers() {
   }, []);
 
   const handleCardClick = async (c) => {
+    if (c.chamber_no === 6) {
+      navigate("/chambers/6");
+      return;
+    }
+
     if (c.state === "LOCKED") return;
 
     // ACTIVE, EVALUATING, PASSED, FAILED: player can resume or enter run directly
@@ -237,7 +242,24 @@ export default function Chambers() {
                   </div>
 
                   <div>
-                    {isLocked ? (
+                    {c.chamber_no === 6 ? (
+                      c.state === "PASSED" || c.state === "COMPLETED" ? (
+                        <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                          <CheckCircle2 size={14} />
+                          COMPLETED
+                        </span>
+                      ) : isLocked ? (
+                        <span className="flex items-center gap-1 text-zinc-500">
+                          <Lock size={12} />
+                          UNLOCK: CH 1-5
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-red-400 font-bold group-hover:translate-x-1 transition-transform">
+                          ENTER FINALE
+                          <ArrowRight size={14} />
+                        </span>
+                      )
+                    ) : isLocked ? (
                       <span className="flex items-center gap-1 text-zinc-600">
                         <Lock size={12} />
                         LOCKED

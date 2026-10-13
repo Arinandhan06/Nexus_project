@@ -307,6 +307,87 @@
   background-size: 100% 4px, 6px 100%;
 }
 
+/* ==========================================================================
+   PHASE 7: PRESSURE ENGINE & NEXUS EFFECTS (SCRUM-21, SCRUM-22)
+   Strictly uses transform and opacity for GPU acceleration & 60fps performance.
+   Amplitude capped at <= 4px. Bursts ~300ms.
+   ========================================================================== */
+
+/* Screen Shake Burst (max 4px amplitude, 300ms) */
+@keyframes nexus-shake-burst {
+  0% { transform: translate(0, 0); }
+  15% { transform: translate(-3px, 2px); }
+  30% { transform: translate(3px, -2px); }
+  45% { transform: translate(-2px, -3px); }
+  60% { transform: translate(2px, 3px); }
+  75% { transform: translate(-3px, 1px); }
+  90% { transform: translate(3px, -1px); }
+  100% { transform: translate(0, 0); }
+}
+
+.nexus-pressure-shake {
+  animation: nexus-shake-burst 300ms ease-in-out;
+}
+
+/* L3 Periodic Shake: 300ms burst roughly every 8 seconds */
+@keyframes nexus-periodic-shake-l3 {
+  0%, 96.25%, 100% { transform: translate(0, 0); }
+  96.5% { transform: translate(-3px, 2px); }
+  97.0% { transform: translate(3px, -2px); }
+  97.5% { transform: translate(-2px, -3px); }
+  98.0% { transform: translate(2px, 3px); }
+  98.5% { transform: translate(-3px, 1px); }
+  99.0% { transform: translate(3px, -1px); }
+}
+
+.nexus-shake-l3 {
+  animation: nexus-periodic-shake-l3 8s ease-in-out infinite;
+}
+
+/* L1 Faster Terminal Cursor */
+@keyframes nexus-fast-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.nexus-fast-cursor,
+.nexus-pressure-active .animate-pulse {
+  animation: nexus-fast-blink 350ms infinite !important;
+}
+
+/* O(n^2) Red Scanline Sweep Alarm (SCRUM-22) */
+@keyframes nexus-scanline-sweep {
+  0% {
+    top: -10%;
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    top: 110%;
+    opacity: 0;
+  }
+}
+
+.nexus-scanline-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(
+    180deg,
+    rgba(239, 68, 68, 0) 0%,
+    rgba(239, 68, 68, 0.5) 50%,
+    rgba(239, 68, 68, 0.9) 95%,
+    rgba(255, 255, 255, 0.8) 100%
+  );
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.8), 0 0 60px rgba(239, 68, 68, 0.4);
+  pointer-events: none;
+  z-index: 50;
+  animation: nexus-scanline-sweep 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glitch-anim,
   .typing-cursor,
@@ -315,7 +396,11 @@
   .float-tree,
   .float-cloud,
   .float-bird,
-  .rotate-sun {
+  .rotate-sun,
+  .nexus-pressure-shake,
+  .nexus-shake-l3,
+  .nexus-scanline-sweep,
+  .nexus-fast-cursor {
     animation: none !important;
     transform: none !important;
   }

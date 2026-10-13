@@ -39,7 +39,13 @@
             "output": "16"
           }
         ],
-        "entry_point": "max_containment"
+        "entry_point": "max_containment",
+        "axis_weights": {
+          "dsa": 0.8,
+          "system_design": 0.1,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 2
       },
       {
         "id": "ch1-pressure-indices",
@@ -75,7 +81,13 @@
             "output": "[0,3]"
           }
         ],
-        "entry_point": "triangulate_sensors"
+        "entry_point": "triangulate_sensors",
+        "axis_weights": {
+          "dsa": 0.8,
+          "system_design": 0.1,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 2
       }
     ]
   },
@@ -118,7 +130,13 @@
             "output": "false"
           }
         ],
-        "entry_point": "validate_packet"
+        "entry_point": "validate_packet",
+        "axis_weights": {
+          "dsa": 0.75,
+          "system_design": 0.15,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 3
       },
       {
         "id": "ch2-voltage-window",
@@ -150,7 +168,13 @@
             "output": "[11]"
           }
         ],
-        "entry_point": "max_sliding_voltage"
+        "entry_point": "max_sliding_voltage",
+        "axis_weights": {
+          "dsa": 0.75,
+          "system_design": 0.15,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 3
       }
     ]
   },
@@ -190,7 +214,13 @@
             "output": "0"
           }
         ],
-        "entry_point": "count_transit_clusters"
+        "entry_point": "count_transit_clusters",
+        "axis_weights": {
+          "dsa": 0.7,
+          "system_design": 0.2,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 4
       },
       {
         "id": "ch3-shortest-bypass",
@@ -222,7 +252,13 @@
             "output": "-1"
           }
         ],
-        "entry_point": "shortest_clear_path"
+        "entry_point": "shortest_clear_path",
+        "axis_weights": {
+          "dsa": 0.7,
+          "system_design": 0.2,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 4
       }
     ]
   },
@@ -264,7 +300,13 @@
             "output": "89"
           }
         ],
-        "entry_point": "count_frequency_hops"
+        "entry_point": "count_frequency_hops",
+        "axis_weights": {
+          "dsa": 0.65,
+          "system_design": 0.25,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 5
       },
       {
         "id": "ch4-coin-denominations",
@@ -301,7 +343,13 @@
             "output": "20"
           }
         ],
-        "entry_point": "min_packets_needed"
+        "entry_point": "min_packets_needed",
+        "axis_weights": {
+          "dsa": 0.65,
+          "system_design": 0.25,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 5
       }
     ]
   },
@@ -336,7 +384,13 @@
             "output": "None"
           }
         ],
-        "entry_point": "invert_key_tree"
+        "entry_point": "invert_key_tree",
+        "axis_weights": {
+          "dsa": 0.3,
+          "system_design": 0.55,
+          "cleanliness": 0.15
+        },
+        "system_design_gain": 9
       },
       {
         "id": "ch5-kth-priority-key",
@@ -367,7 +421,13 @@
             "output": "1"
           }
         ],
-        "entry_point": "find_kth_clearance"
+        "entry_point": "find_kth_clearance",
+        "axis_weights": {
+          "dsa": 0.3,
+          "system_design": 0.55,
+          "cleanliness": 0.15
+        },
+        "system_design_gain": 9
       }
     ]
   },
@@ -376,6 +436,58 @@
     "theme": "Final Adversarial Interview",
     "story_title": "Sector 06: NEXUS Nexus Singularity",
     "description": "The Final Adversarial Interview against the unconstrained NEXUS Core. Built in Phase 9.",
-    "challenges": []
+    "challenges": [
+      {
+        "id": "ch6-trapping-coolant",
+        "chamber_no": 6,
+        "title": "Singularity Coolant Containment",
+        "story": "Core cooling conduits have ruptured in Sector 06 under unconstrained gravitational stress. Compute the total units of volumetric coolant trapped between elevation barriers before critical containment failure.",
+        "statement": "Given an array of non-negative integers height representing an elevation profile where the width of each barrier is 1, compute the total units of coolant trapped after containment breach.",
+        "constraints": [
+          "1 <= height.length <= 10^5",
+          "0 <= height[i] <= 10^4"
+        ],
+        "starter_code": "def trap_coolant(height: list[int]) -> int:\n    # Compute the total units of trapped coolant in O(n) time\n    pass\n",
+        "time_limit_seconds": 1200,
+        "expected_complexity": "O(n)",
+        "public_examples": [
+          {
+            "input": "height = [0,1,0,2,1,0,1,3,2,1,2,1]",
+            "output": "6",
+            "explanation": "6 total units of coolant trapped."
+          },
+          {
+            "input": "height = [4,2,0,3,2,5]",
+            "output": "9",
+            "explanation": "9 total units of coolant trapped."
+          }
+        ],
+        "hidden_tests": [
+          {
+            "input": "[3,0,2,0,4]",
+            "output": "7"
+          },
+          {
+            "input": "[0,2,0]",
+            "output": "0"
+          },
+          {
+            "input": "[5,4,1,2]",
+            "output": "1"
+          },
+          {
+            "input": "[2,0,2]",
+            "output": "2"
+          }
+        ],
+        "entry_point": "trap_coolant",
+        "axis_weights": {
+          "dsa": 0.4,
+          "system_design": 0.5,
+          "cleanliness": 0.1
+        },
+        "system_design_gain": 10
+      }
+    ]
   }
 ]

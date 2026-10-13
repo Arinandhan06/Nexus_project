@@ -62,3 +62,11 @@ Thumbs.db
 .env.test.local
 .env.production.local
 backend/.env
+
+# Local Archives and Unused Prototypes
+SENTINEL-main/
+odyssey-sar-prototype/
+.coverage
+backend/.coverage
+.pytest_cache/
+

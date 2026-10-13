@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const defaultHost = "localhost";
+const defaultHost = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
 const defaultPort = 8000;
 const baseURL = import.meta.env.VITE_API_URL || `http://${defaultHost}:${defaultPort}`;
 
@@ -28,7 +28,11 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      sessionStorage.removeItem("authToken");
+      // Only clear session token if the user identity validation endpoint explicitly fails
+      const url = error.config?.url || "";
+      if (url.endsWith("/me") || url === "/me") {
+        sessionStorage.removeItem("authToken");
+      }
     }
     return Promise.reject(error);
   }

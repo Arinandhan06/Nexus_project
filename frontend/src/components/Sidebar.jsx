@@ -11,6 +11,7 @@ import {
   User,
   LogOut,
   Sparkles,
+  TrendingUp,
 } from "lucide-react";
 import { GlitchText } from "./nexus";
 
@@ -19,6 +20,7 @@ const navItems = [
   { label: "Safehouse", icon: Shield, path: "/safehouse" },
   { label: "Chambers", icon: Terminal, path: "/chambers" },
   { label: "Matrix", icon: Activity, path: "/matrix" },
+  { label: "Progress", icon: TrendingUp, path: "/progress" },
   { label: "Profile", icon: User, path: "/profile" },
 ];
 

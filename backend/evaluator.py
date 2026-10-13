@@ -139,6 +139,7 @@ class ComplexityVisitor(ast.NodeVisitor):
         self.current_loop_depth = 0
         self.has_sorting = False
         self.is_exponential_recursive = False
+        self.findings: List[Dict[str, Any]] = []
 
     def _is_loop_node(self, node: ast.AST) -> bool:
         return isinstance(node, (ast.For, ast.AsyncFor, ast.While,
@@ -208,20 +209,53 @@ class ComplexityVisitor(ast.NodeVisitor):
 
             if not has_cache_decorator and not has_memo_param:
                 self.is_exponential_recursive = True
+                self.findings.append({
+                    "line": getattr(fn_node, "lineno", 1),
+                    "message": f"Unmemoized multiple recursive calls in function '{fn_name}'.",
+                    "suggestion": "Cache intermediate subproblem results using dynamic programming or memoization."
+                })
 
     def visit_Call(self, node: ast.Call):
         # Detect sorting: sorted(...) or obj.sort(...)
         if isinstance(node.func, ast.Name) and node.func.id == "sorted":
             self.has_sorting = True
+            if self.current_loop_depth > 0:
+                self.findings.append({
+                    "line": getattr(node, "lineno", 1),
+                    "message": "Sorting call inside an active loop body.",
+                    "suggestion": "Pre-sort collections outside the loop or utilize a heap for partial ordering."
+                })
         elif isinstance(node.func, ast.Attribute) and node.func.attr == "sort":
             self.has_sorting = True
+            if self.current_loop_depth > 0:
+                self.findings.append({
+                    "line": getattr(node, "lineno", 1),
+                    "message": "In-place sort called inside an active loop body.",
+                    "suggestion": "Pre-sort collections outside the loop or utilize a heap for partial ordering."
+                })
         self.generic_visit(node)
 
     def generic_visit(self, node: ast.AST):
         if self._is_loop_node(node):
+            if self.current_loop_depth >= 1:
+                self.findings.append({
+                    "line": getattr(node, "lineno", 1),
+                    "message": "Nested loop detected causing quadratic or higher time complexity.",
+                    "suggestion": "Look for a way to avoid the inner loop, such as a lookup table."
+                })
+
             self.current_loop_depth += 1
             # Check if this loop has hidden quadratic operations inside it
-            extra_depth = 1 if self._contains_hidden_quadratic(node) else 0
+            if self._contains_hidden_quadratic(node):
+                self.findings.append({
+                    "line": getattr(node, "lineno", 1),
+                    "message": "O(n) collection membership search or slice operation inside loop body.",
+                    "suggestion": "Convert collection to a set or hash map for O(1) membership lookups."
+                })
+                extra_depth = 1
+            else:
+                extra_depth = 0
+
             effective = self.current_loop_depth + extra_depth
             if effective > self.max_effective_loop_depth:
                 self.max_effective_loop_depth = effective
@@ -232,25 +266,30 @@ class ComplexityVisitor(ast.NodeVisitor):
             super().generic_visit(node)
 
 
-def estimate_complexity(tree: ast.AST) -> str:
-    """Estimates time complexity string labeled with '(estimated)'."""
+def analyze_complexity(tree: ast.AST) -> Tuple[str, List[Dict[str, Any]]]:
+    """Analyzes AST and returns (tier_string, complexity_findings)."""
     visitor = ComplexityVisitor()
     visitor.visit(tree)
 
     if visitor.is_exponential_recursive:
-        return "O(2^n)"
-
-    depth = visitor.max_effective_loop_depth
-
-    if depth == 0:
-        base = "O(n log n)" if visitor.has_sorting else "O(1)"
-    elif depth == 1:
-        base = "O(n log n)" if visitor.has_sorting else "O(n)"
-    elif depth == 2:
-        base = "O(n^2)"
+        base = "O(2^n)"
     else:
-        base = "O(n^3)"
+        depth = visitor.max_effective_loop_depth
+        if depth == 0:
+            base = "O(n log n)" if visitor.has_sorting else "O(1)"
+        elif depth == 1:
+            base = "O(n log n)" if visitor.has_sorting else "O(n)"
+        elif depth == 2:
+            base = "O(n^2)"
+        else:
+            base = "O(n^3)"
 
+    return base, visitor.findings
+
+
+def estimate_complexity(tree: ast.AST) -> str:
+    """Estimates time complexity string labeled with '(estimated)'."""
+    base, _ = analyze_complexity(tree)
     return base
 
 
@@ -334,7 +373,8 @@ def evaluate_cleanliness(tree: ast.AST, code: str) -> Tuple[int, List[Dict[str, 
                 deductions += 10
                 findings.append({
                     "line": node.lineno,
-                    "message": "Bare 'except:' clause caught without specific exception type."
+                    "message": "Bare 'except:' clause caught without specific exception type.",
+                    "suggestion": "Catch specific exception types such as ValueError or KeyError."
                 })
 
         # 4. Loop targets (allowed single letters: i, j, k, v, x, etc.)
@@ -351,7 +391,8 @@ def evaluate_cleanliness(tree: ast.AST, code: str) -> Tuple[int, List[Dict[str, 
                     # Check if this constant is part of a docstring or slice
                     findings.append({
                         "line": getattr(node, "lineno", 1),
-                        "message": f"Magic number '{val}' used without a named constant."
+                        "message": f"Magic number '{val}' used without a named constant.",
+                        "suggestion": "Extract literal numbers into named constants with descriptive names."
                     })
                     deductions += 2
 
@@ -364,7 +405,8 @@ def evaluate_cleanliness(tree: ast.AST, code: str) -> Tuple[int, List[Dict[str, 
                 deductions += 5
                 findings.append({
                     "line": node.lineno,
-                    "message": f"Function '{node.name}' exceeds 30 lines ({fn_len} lines)."
+                    "message": f"Function '{node.name}' exceeds 30 lines ({fn_len} lines).",
+                    "suggestion": "Break large functions into smaller modular helper functions."
                 })
 
             # Nesting depth & branches
@@ -392,7 +434,8 @@ def evaluate_cleanliness(tree: ast.AST, code: str) -> Tuple[int, List[Dict[str, 
                 deductions += 5
                 findings.append({
                     "line": node.lineno,
-                    "message": f"Excessive nesting depth ({max_depth} levels) in function '{node.name}'."
+                    "message": f"Excessive nesting depth ({max_depth} levels) in function '{node.name}'.",
+                    "suggestion": "Look for a way to flatten nested logic, such as early returns or guard clauses."
                 })
 
             if branch_count > 8:
@@ -400,7 +443,8 @@ def evaluate_cleanliness(tree: ast.AST, code: str) -> Tuple[int, List[Dict[str, 
                 deductions += min(15, excess * 2)
                 findings.append({
                     "line": node.lineno,
-                    "message": f"High cyclomatic complexity ({branch_count} branches) in function '{node.name}'."
+                    "message": f"High cyclomatic complexity ({branch_count} branches) in function '{node.name}'.",
+                    "suggestion": "Simplify decision branches by utilizing lookup tables or polymorphism."
                 })
 
             # Check variable assignments inside function
@@ -415,7 +459,8 @@ def evaluate_cleanliness(tree: ast.AST, code: str) -> Tuple[int, List[Dict[str, 
                                 deductions += 2
                                 findings.append({
                                     "line": child.lineno,
-                                    "message": f"Cryptic single-letter variable '{var_name}' assigned outside loop index."
+                                    "message": f"Cryptic single-letter variable '{var_name}' assigned outside loop index.",
+                                    "suggestion": "Use descriptive multi-character variable names to clarify intent."
                                 })
 
     # Check unused imports
@@ -424,7 +469,8 @@ def evaluate_cleanliness(tree: ast.AST, code: str) -> Tuple[int, List[Dict[str, 
             deductions += 5
             findings.append({
                 "line": lineno,
-                "message": f"Unused import '{imp_name}'."
+                "message": f"Unused import '{imp_name}'.",
+                "suggestion": "Remove unused module imports to keep the namespace clean."
             })
 
     # Check unused local variables
@@ -433,7 +479,8 @@ def evaluate_cleanliness(tree: ast.AST, code: str) -> Tuple[int, List[Dict[str, 
             deductions += 3
             findings.append({
                 "line": lineno,
-                "message": f"Local variable '{var_name}' assigned but never used."
+                "message": f"Local variable '{var_name}' assigned but never used.",
+                "suggestion": "Remove unused local variables or use their values."
             })
 
     # Sort findings by line number
@@ -467,20 +514,40 @@ def evaluate_code_ast(code: str, expected_complexity: str = "O(n)") -> Dict[str,
             "expected": expected_complexity,
             "inefficient": False,
             "cleanliness": 0,
-            "findings": [{"line": 1, "message": pre["message"]}],
+            "findings": [{
+                "line": 1,
+                "message": pre["message"],
+                "suggestion": "Verify syntax structure or remove restricted system modules."
+            }],
             "security_flags": pre.get("security_flags", [pre["message"]])
         }
 
     tree = ast.parse(code)
-    raw_tier = estimate_complexity(tree)
+    raw_tier, complexity_findings = analyze_complexity(tree)
     inefficient = is_complexity_worse(raw_tier, expected_complexity)
-    cleanliness, findings = evaluate_cleanliness(tree, code)
+    cleanliness, cleanliness_findings = evaluate_cleanliness(tree, code)
+
+    # Combine findings: complexity findings (nested loops, quadratic lookups) plus style findings
+    combined_findings = []
+    if complexity_findings:
+        combined_findings.extend(complexity_findings)
+    combined_findings.extend(cleanliness_findings)
+
+    # Deduplicate findings by line & message while preserving order
+    seen = set()
+    deduped = []
+    for f in combined_findings:
+        key = (f["line"], f["message"])
+        if key not in seen:
+            seen.add(key)
+            deduped.append(f)
+    deduped.sort(key=lambda x: x["line"])
 
     return {
         "complexity_estimate": f"{raw_tier} (estimated)",
         "expected": expected_complexity,
         "inefficient": inefficient,
         "cleanliness": cleanliness,
-        "findings": findings,
+        "findings": deduped,
         "security_flags": []
     }

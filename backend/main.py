@@ -8,10 +8,16 @@ import uvicorn
 import json # Essential for /market-match logic
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from collections import defaultdict
+from typing import Dict, Any, List, Optional
 import database
 import evaluator
 import harness
 import judge0
+import nexus_ai
+import finale
+import bids
+import github_trophy
 from mirror_agent import MirrorAgent
 from lab_agent import LabAgent
 from foundry_agent import FoundryAgent
@@ -43,6 +49,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Security Headers Middleware
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+# Global in-memory rate limiting dictionary
+_rate_limits = defaultdict(lambda: defaultdict(list))
+
+def check_endpoint_rate_limit(category: str, key: Any, limit: int, window: float = 60.0):
+    now = time.time()
+    t_start = now - window
+    records = [t for t in _rate_limits[category][key] if t > t_start]
+    if len(records) >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded for {category}. Maximum {limit} requests per minute."
+        )
+    records.append(now)
+    _rate_limits[category][key] = records
+
+DEMO_MODE = os.getenv("DEMO_MODE", "").lower() in ("true", "1", "yes")
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024
+MAX_CODE_SIZE = 20 * 1024
+
 # Initialize Agents
 mirror = MirrorAgent()
 lab = LabAgent(mirror.client)
@@ -66,7 +100,6 @@ def get_me_profile(current_user: dict = Depends(get_current_user)):
 
 
 # --- Foundry API Models & Endpoints ---
-# --- Foundry API Models & Endpoints ---
 class FoundryChatRequest(BaseModel):
     message: str
     code: str
@@ -78,27 +111,44 @@ class FoundryValidateRequest(BaseModel):
     phase_objective: str
 
 @app.post("/foundry/chat")
-async def foundry_chat(req: FoundryChatRequest):
+async def foundry_chat(req: FoundryChatRequest, current_user: dict = Depends(get_current_user)):
+    check_endpoint_rate_limit("foundry_chat", current_user["id"], limit=20)
+    if len(req.message) > 2000:
+        raise HTTPException(status_code=400, detail="Message exceeds 2,000 character maximum.")
+    if req.code and len(req.code.encode("utf-8")) > MAX_CODE_SIZE:
+        raise HTTPException(status_code=400, detail="Code exceeds 20 KB limit.")
     response = foundry.chat_architect(req.message, req.code, req.project_context, req.language)
     return {"response": response}
 
 @app.post("/foundry/validate")
-async def foundry_validate(req: FoundryValidateRequest):
+async def foundry_validate(req: FoundryValidateRequest, current_user: dict = Depends(get_current_user)):
+    check_endpoint_rate_limit("foundry_validate", current_user["id"], limit=20)
+    if req.code and len(req.code.encode("utf-8")) > MAX_CODE_SIZE:
+        raise HTTPException(status_code=400, detail="Code exceeds 20 KB limit.")
     result = foundry.validate_code(req.code, req.phase_objective)
     return result
 
 import base64
 
 @app.post("/foundry/verify")
-async def verify_output(file: UploadFile = File(...), phase_objective: str = Form(...)):
+async def verify_output(
+    file: UploadFile = File(...),
+    phase_objective: str = Form(...),
+    current_user: dict = Depends(get_current_user)
+):
+    check_endpoint_rate_limit("foundry_verify", current_user["id"], limit=20)
     try:
         contents = await file.read()
+        if len(contents) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File exceeds 5MB limit.")
         # Convert to base64 data url
         encoded_image = base64.b64encode(contents).decode("utf-8")
         image_url = f"data:image/jpeg;base64,{encoded_image}"
         
         result = foundry.verify_screenshot(image_url, phase_objective)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e), "approved": False})
 
@@ -240,6 +290,22 @@ async def process_career_cycle(
 @app.get("/profile/matrix")
 def get_matrix_endpoint(current_user: dict = Depends(get_current_user)):
     return database.get_profile_matrix(current_user["id"])
+
+@app.get("/profile/matrix/history")
+def get_matrix_history_endpoint(
+    limit: int = 20,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user)
+):
+    return database.get_matrix_history(current_user["id"], limit=limit, offset=offset)
+
+@app.get("/profile/nxp-ledger")
+def get_nxp_ledger_endpoint(
+    limit: int = 20,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user)
+):
+    return database.get_nxp_ledger(current_user["id"], limit=limit, offset=offset)
 
 @app.get("/profile/schedule")
 def get_schedule_endpoint(current_user: dict = Depends(get_current_user)):
@@ -451,6 +517,648 @@ async def submit_chamber_endpoint(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class ChamberRunTestRequest(BaseModel):
+    code: str
+    language: str = "python"
+
+@app.post("/chambers/{chamber_no}/run")
+async def run_chamber_public_tests_endpoint(
+    chamber_no: int,
+    payload: ChamberRunTestRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Executes player code against public examples only.
+    Does not increment attempts, does not update chamber state or streaks.
+    """
+    if chamber_no < 1 or chamber_no > 6:
+        raise HTTPException(status_code=400, detail="Chamber number must be between 1 and 6.")
+
+    code = payload.code
+    if not code or not code.strip():
+        raise HTTPException(status_code=400, detail="Code cannot be empty.")
+
+    if len(code.encode("utf-8")) > 20 * 1024:
+        raise HTTPException(status_code=400, detail="Code exceeds 20 KB limit.")
+
+    # 1. Static pre-check
+    pre = evaluator.pre_check_code(code)
+    if not pre["passed"]:
+        return {
+            "success": False,
+            "error": pre["message"],
+            "reason": pre["reason"],
+            "results": [],
+            "stdout": pre["message"]
+        }
+
+    # 2. Get active or default challenge
+    ch_info = chamber_engine.get_current_chamber_info(current_user["id"], chamber_no)
+    challenge = ch_info.get("challenge")
+    if not challenge:
+        ch_def = chamber_engine.get_chamber_definition(chamber_no) or {}
+        if ch_def.get("challenges"):
+            challenge = ch_def["challenges"][0]
+
+    if not challenge:
+        raise HTTPException(status_code=404, detail=f"Challenge for Chamber {chamber_no} not found.")
+
+    entry_point = challenge.get("entry_point", "solution")
+    examples = challenge.get("public_examples", [])
+    if not examples:
+        examples = challenge.get("hidden_tests", [])
+
+    program_code = harness.build_program(code, entry_point)
+
+    submissions = []
+    for ex in examples:
+        stdin_json = harness.prepare_test_stdin(ex.get("input"))
+        submissions.append({
+            "source_code": program_code,
+            "stdin": stdin_json,
+            "cpu_time_limit": 2.0,
+            "memory_limit": 128000
+        })
+
+    judge_results = await judge0.execute_batch(submissions)
+
+    results = []
+    user_stdouts = []
+    all_passed = True if len(examples) > 0 else False
+
+    for idx, ex in enumerate(examples):
+        j_res = judge_results[idx] if idx < len(judge_results) else {
+            "status": "internal_error", "time_ms": 0, "stdout": "", "error_message": ""
+        }
+
+        parsed = harness.parse_harness_output(j_res.get("stdout", ""))
+        if parsed.get("stdout"):
+            user_stdouts.append(parsed["stdout"])
+
+        if j_res.get("status") == "passed":
+            if parsed.get("found") and not parsed.get("error"):
+                is_correct = harness.compare_results(parsed.get("result"), ex.get("output"))
+                test_status = "passed" if is_correct else "wrong_answer"
+            elif parsed.get("error"):
+                test_status = "runtime_error"
+            else:
+                test_status = "wrong_answer"
+        else:
+            test_status = j_res.get("status", "internal_error")
+
+        passed = (test_status == "passed")
+        if not passed:
+            all_passed = False
+
+        results.append({
+            "example_no": idx + 1,
+            "input": ex.get("input"),
+            "expected": ex.get("output"),
+            "actual": str(parsed.get("result")) if parsed.get("found") and not parsed.get("error") else None,
+            "passed": passed,
+            "status": test_status,
+            "time_ms": j_res.get("time_ms", 0),
+            "error": parsed.get("error") or j_res.get("error_message") or None
+        })
+
+    return {
+        "success": True,
+        "all_passed": all_passed,
+        "results": results,
+        "stdout": "\n".join(user_stdouts)
+    }
+
+class NexusTauntRequest(BaseModel):
+    event_type: str = "failed"
+    chamber_no: int = 1
+    challenge_title: str = "Sector Trial"
+    complexity_estimate: str = "O(n)"
+    top_findings: list[str] = []
+    attempts: int = 1
+    streak: int = 0
+    time_used_pct: int = 50
+
+@app.post("/nexus/taunt")
+async def generate_nexus_taunt_endpoint(
+    payload: NexusTauntRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    check_endpoint_rate_limit("nexus_taunt", current_user["id"], limit=30)
+    taunt_data = payload.model_dump() if hasattr(payload, "model_dump") else payload.dict()
+    text = await nexus_ai.generate_taunt(taunt_data)
+    return {"text": text}
+
+
+# --- DEMO MODE BACKDOOR ENDPOINT ---
+@app.post("/dev/unlock-chamber/{chamber_no}")
+async def dev_unlock_chamber(
+    chamber_no: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Backdoor chamber unlock endpoint active ONLY when DEMO_MODE=true.
+    Returns 404 whenever DEMO_MODE is false or unset.
+    """
+    if not DEMO_MODE:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dev backdoor is disabled. DEMO_MODE is not active."
+        )
+    if chamber_no < 1 or chamber_no > 6:
+        raise HTTPException(status_code=400, detail="Chamber number must be between 1 and 6.")
+
+    import sqlite3
+    conn = sqlite3.connect(database.DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO chamber_state (user_id, chamber_no, state, attempts)
+        VALUES (?, ?, 'UNLOCKED', 0)
+        ON CONFLICT(user_id, chamber_no) DO UPDATE SET state = 'UNLOCKED'
+    """, (current_user["id"], chamber_no))
+    cursor.execute("""
+        UPDATE player_profile 
+        SET current_chamber = MAX(current_chamber, ?) 
+        WHERE user_id = ?
+    """, (chamber_no, current_user["id"]))
+    conn.commit()
+    conn.close()
+
+    await ws.ws_manager.broadcast_to_user(current_user["id"], {
+        "type": "state",
+        "payload": {"chamber_no": chamber_no, "state": "UNLOCKED"}
+    })
+    return {"status": "unlocked", "chamber_no": chamber_no, "state": "UNLOCKED"}
+
+
+# --- CHAMBER 6 FINALE INTERVIEW ENDPOINTS (SCRUM-28) ---
+class FinaleQuizSubmitRequest(BaseModel):
+    answers: Dict[str, str]
+
+class FinaleDesignSubmitRequest(BaseModel):
+    answer: str
+
+_finale_rate_limit_timestamps = defaultdict(list)
+
+def check_finale_rate_limit(user_id: int):
+    now = time.time()
+    window_start = now - 60.0
+    timestamps = [ts for ts in _finale_rate_limit_timestamps[user_id] if ts > window_start]
+    if len(timestamps) >= 30:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded for finale interview. Please slow down."
+        )
+    timestamps.append(now)
+    _finale_rate_limit_timestamps[user_id] = timestamps
+
+
+@app.post("/finale/start")
+async def start_finale_endpoint(current_user: dict = Depends(get_current_user)):
+    check_finale_rate_limit(current_user["id"])
+    if not database.check_chambers_1_to_5_passed(current_user["id"]):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Chambers 1-5 must all be PASSED before entering the Finale."
+        )
+
+    st = database.get_finale_state(current_user["id"])
+    if st and st.get("state") == "ACTIVE":
+        return st
+
+    now = datetime.utcnow()
+    deadline = now + timedelta(seconds=1200)
+    initial_scores = {
+        "coding": {"passed": False, "score": 0},
+        "quiz": {"score": 0},
+        "design": {"score": 0}
+    }
+    st = database.upsert_finale_state(
+        user_id=current_user["id"],
+        round_no=1,
+        state="ACTIVE",
+        started_at=now,
+        deadline_at=deadline,
+        scores=initial_scores
+    )
+    chamber_engine.set_chamber_state(current_user["id"], 6, chamber_engine.ChamberState.ACTIVE)
+    await ws.ws_manager.broadcast_to_user(current_user["id"], {
+        "type": "nexus",
+        "payload": {"text": finale.INTERVIEWER_LINES["round_1_start"]}
+    })
+    return st
+
+
+@app.get("/finale/state")
+def get_finale_state_endpoint(current_user: dict = Depends(get_current_user)):
+    check_finale_rate_limit(current_user["id"])
+    if not database.check_chambers_1_to_5_passed(current_user["id"]):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Chambers 1-5 must all be PASSED before entering the Finale."
+        )
+
+    st = database.get_finale_state(current_user["id"])
+    if not st:
+        return {"state": "NOT_STARTED", "unlocked": True}
+
+    seconds_remaining = 0
+    if st.get("deadline_at"):
+        try:
+            dl = datetime.fromisoformat(st["deadline_at"])
+            delta = (dl - datetime.utcnow()).total_seconds()
+            seconds_remaining = max(0, int(delta))
+        except Exception:
+            seconds_remaining = 0
+
+    content = {}
+    r = st.get("round", 1)
+    if r == 1:
+        ch6_info = chamber_engine.get_current_chamber_info(current_user["id"], 6)
+        content = {"challenge": ch6_info.get("challenge")}
+    elif r == 2:
+        content = {"questions": finale.load_quiz_questions(strip_answers=True)}
+    elif r == 3:
+        content = {"prompt": finale.SYSTEM_DESIGN_PROMPT}
+    elif r >= 4 or st.get("state") in ("COMPLETED", "FAILED"):
+        content = {"results": st.get("scores", {})}
+
+    res = dict(st)
+    res["seconds_remaining"] = seconds_remaining
+    res["content"] = content
+    return res
+
+
+@app.post("/finale/coding/submit")
+async def submit_finale_coding_endpoint(
+    payload: ChamberSubmitRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    check_finale_rate_limit(current_user["id"])
+    st = database.get_finale_state(current_user["id"])
+    if not st or st.get("round") != 1 or st.get("state") != "ACTIVE":
+        raise HTTPException(status_code=400, detail="Not in coding round.")
+
+    if st.get("deadline_at"):
+        try:
+            dl = datetime.fromisoformat(st["deadline_at"])
+            if datetime.utcnow() > dl + timedelta(seconds=5):
+                raise HTTPException(status_code=400, detail="Coding round deadline expired.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    code_bytes = len(payload.code.encode("utf-8"))
+    if code_bytes > 20 * 1024:
+        raise HTTPException(status_code=400, detail="Code exceeds 20 KB limit.")
+
+    ch_def = chamber_engine.get_chamber_definition(6) or {}
+    challenges = ch_def.get("challenges", [])
+    if not challenges:
+        raise HTTPException(status_code=500, detail="Chamber 6 coding challenge definition missing.")
+    challenge = challenges[0]
+
+    eval_res = await chamber_engine.evaluate_code(challenge, payload.code)
+    all_passed = eval_res.get("all_passed", False)
+
+    scores = st.get("scores", {})
+    scores["coding"] = {
+        "passed": all_passed,
+        "score": 100 if all_passed else 0,
+        "complexity": eval_res.get("complexity", "O(n)"),
+        "cleanliness": eval_res.get("cleanliness", 100),
+        "inefficient": eval_res.get("inefficient", False),
+        "tests": eval_res.get("tests", [])
+    }
+
+    if all_passed:
+        now = datetime.utcnow()
+        quiz_deadline = now + timedelta(seconds=300)
+        st = database.upsert_finale_state(
+            user_id=current_user["id"],
+            round_no=2,
+            state="ACTIVE",
+            started_at=now,
+            deadline_at=quiz_deadline,
+            scores=scores
+        )
+        await ws.ws_manager.broadcast_to_user(current_user["id"], {
+            "type": "nexus",
+            "payload": {"text": finale.INTERVIEWER_LINES["round_1_pass"]}
+        })
+    else:
+        st = database.upsert_finale_state(
+            user_id=current_user["id"],
+            round_no=1,
+            state="ACTIVE",
+            started_at=st["started_at"],
+            deadline_at=st["deadline_at"],
+            scores=scores
+        )
+
+    return {
+        "passed": all_passed,
+        "evaluation": eval_res,
+        "scores": scores,
+        "round": st.get("round", 1)
+    }
+
+
+@app.post("/finale/quiz/submit")
+async def submit_finale_quiz_endpoint(
+    payload: FinaleQuizSubmitRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    check_finale_rate_limit(current_user["id"])
+    if len(payload.answers) > 20:
+        raise HTTPException(status_code=400, detail="Quiz answers payload exceeds maximum size.")
+    st = database.get_finale_state(current_user["id"])
+    if not st or st.get("round") != 2 or st.get("state") != "ACTIVE":
+        raise HTTPException(status_code=400, detail="Not in quiz round.")
+
+    if st.get("deadline_at"):
+        try:
+            dl = datetime.fromisoformat(st["deadline_at"])
+            if datetime.utcnow() > dl + timedelta(seconds=5):
+                raise HTTPException(status_code=400, detail="Quiz round deadline expired.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    quiz_eval = finale.score_quiz(payload.answers)
+    scores = st.get("scores", {})
+    scores["quiz"] = quiz_eval
+
+    now = datetime.utcnow()
+    design_deadline = now + timedelta(seconds=600)
+    st = database.upsert_finale_state(
+        user_id=current_user["id"],
+        round_no=3,
+        state="ACTIVE",
+        started_at=now,
+        deadline_at=design_deadline,
+        scores=scores
+    )
+    await ws.ws_manager.broadcast_to_user(current_user["id"], {
+        "type": "nexus",
+        "payload": {"text": finale.INTERVIEWER_LINES["round_2_complete"]}
+    })
+    return {
+        "quiz": quiz_eval,
+        "scores": scores,
+        "round": 3
+    }
+
+
+@app.post("/finale/design/submit")
+async def submit_finale_design_endpoint(
+    payload: FinaleDesignSubmitRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    check_finale_rate_limit(current_user["id"])
+    st = database.get_finale_state(current_user["id"])
+    if not st or st.get("round") != 3 or st.get("state") != "ACTIVE":
+        raise HTTPException(status_code=400, detail="Not in system design round.")
+
+    if st.get("deadline_at"):
+        try:
+            dl = datetime.fromisoformat(st["deadline_at"])
+            if datetime.utcnow() > dl + timedelta(seconds=5):
+                raise HTTPException(status_code=400, detail="System design deadline expired.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    if len(payload.answer) > 2000:
+        raise HTTPException(status_code=400, detail="Design response exceeds 2,000 character maximum.")
+
+    design_eval = finale.evaluate_system_design(payload.answer)
+    scores = st.get("scores", {})
+    scores["design"] = design_eval
+
+    coding_passed = scores.get("coding", {}).get("passed", False)
+    quiz_score = scores.get("quiz", {}).get("score", 0)
+    design_score = design_eval.get("total", 50)
+
+    overall = finale.calculate_overall_finale_score(coding_passed, quiz_score, design_score)
+    scores["overall"] = overall
+
+    final_state = "COMPLETED" if overall["passed"] else "FAILED"
+    award_data = None
+
+    if overall["passed"]:
+        award_data = database.commit_finale_award(current_user["id"])
+        scores["award"] = award_data
+        await ws.ws_manager.broadcast_to_user(current_user["id"], {
+            "type": "progress",
+            "payload": {
+                "nxp_awarded": award_data.get("nxp_awarded", 0),
+                "total_nxp": award_data.get("total_nxp", 0),
+                "streak": award_data.get("streak", 0),
+                "multiplier": 1.0,
+                "matrix": award_data.get("matrix", {}),
+                "deltas": award_data.get("deltas", {})
+            }
+        })
+        await ws.ws_manager.broadcast_to_user(current_user["id"], {
+            "type": "nexus",
+            "payload": {"text": finale.INTERVIEWER_LINES["finale_pass"]}
+        })
+    else:
+        await ws.ws_manager.broadcast_to_user(current_user["id"], {
+            "type": "nexus",
+            "payload": {"text": finale.INTERVIEWER_LINES["finale_fail"]}
+        })
+
+    database.upsert_finale_state(
+        user_id=current_user["id"],
+        round_no=4,
+        state=final_state,
+        started_at=st["started_at"],
+        deadline_at=None,
+        scores=scores
+    )
+
+    return {
+        "design": design_eval,
+        "overall": overall,
+        "award": award_data,
+        "state": final_state
+    }
+
+
+@app.get("/finale/results")
+def get_finale_results_endpoint(current_user: dict = Depends(get_current_user)):
+    check_finale_rate_limit(current_user["id"])
+    st = database.get_finale_state(current_user["id"])
+    if not st:
+        raise HTTPException(status_code=404, detail="No finale interview record found.")
+    return {
+        "state": st.get("state"),
+        "scores": st.get("scores", {}),
+        "round": st.get("round", 1)
+    }
+
+
+# --- PHASE 9B: COMPANY BIDS & GITHUB TROPHY (SCRUM-29, SCRUM-30) ---
+class TrophyClaimRequest(BaseModel):
+    confirm: bool = False
+    create_repo_if_missing: bool = False
+
+
+@app.get("/finale/bids")
+def get_finale_bids_endpoint(current_user: dict = Depends(get_current_user)):
+    check_finale_rate_limit(current_user["id"])
+    st = database.get_finale_state(current_user["id"])
+    if not st or st.get("state") != "COMPLETED":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Company bids unlock only after the Finale is COMPLETED."
+        )
+
+    metrics = database.get_player_style_metrics(current_user["id"])
+    result = bids.generate_bids_and_analysis(metrics)
+    return result
+
+
+@app.post("/trophy/preview")
+async def get_trophy_preview_endpoint(current_user: dict = Depends(get_current_user)):
+    user_dict = dict(current_user)
+    check_finale_rate_limit(user_dict["id"])
+    enc_token = user_dict.get("github_token_enc")
+    if not enc_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="GitHub token missing. Please log in with GitHub."
+        )
+
+    import auth_github
+    try:
+        token = auth_github.decrypt_token(enc_token)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unable to decrypt GitHub token. Please log in again."
+        )
+
+    login = user_dict.get("github_username")
+    if not login:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No GitHub username associated with this cadet account."
+        )
+
+    prof = database.get_player_profile(user_dict["id"]) or {}
+    total_nxp = prof.get("total_nxp", 0)
+
+    client = github_trophy.GitHubTrophyClient(token, login)
+    readme_info = await client.get_profile_readme()
+
+    trophy_block = github_trophy.generate_trophy_block(
+        total_nxp=total_nxp,
+        chambers_completed=6
+    )
+
+    original_content = readme_info.get("content", "")
+    updated_content, already_claimed = github_trophy.update_readme_trophy(
+        original_content,
+        trophy_block
+    )
+
+    diff_str = github_trophy.compute_readme_diff(original_content, updated_content)
+
+    return {
+        "repo_name": f"{login}/{login}",
+        "repo_exists": readme_info["repo_exists"],
+        "readme_exists": readme_info["readme_exists"],
+        "already_claimed": already_claimed,
+        "preview_diff": diff_str,
+        "trophy_markdown": trophy_block,
+        "updated_content": updated_content
+    }
+
+
+@app.post("/trophy/claim")
+async def claim_trophy_endpoint(
+    payload: TrophyClaimRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    user_dict = dict(current_user)
+    check_finale_rate_limit(user_dict["id"])
+    if not payload.confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation is required to claim and commit your trophy badge."
+        )
+
+    enc_token = user_dict.get("github_token_enc")
+    if not enc_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="GitHub token missing. Please log in with GitHub."
+        )
+
+    import auth_github
+    try:
+        token = auth_github.decrypt_token(enc_token)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unable to decrypt GitHub token. Please log in again."
+        )
+
+    login = user_dict.get("github_username")
+    if not login:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No GitHub username associated with this cadet account."
+        )
+
+    prof = database.get_player_profile(user_dict["id"]) or {}
+    total_nxp = prof.get("total_nxp", 0)
+
+    client = github_trophy.GitHubTrophyClient(token, login)
+    readme_info = await client.get_profile_readme()
+
+    if not readme_info["repo_exists"]:
+        if payload.create_repo_if_missing:
+            await client.create_profile_repo()
+            readme_info = await client.get_profile_readme()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Profile repository {login}/{login} does not exist. Please confirm repository creation."
+            )
+
+    trophy_block = github_trophy.generate_trophy_block(
+        total_nxp=total_nxp,
+        chambers_completed=6
+    )
+
+    original_content = readme_info.get("content", "")
+    updated_content, already_claimed = github_trophy.update_readme_trophy(
+        original_content,
+        trophy_block
+    )
+
+    if already_claimed:
+        return {
+            "status": "already claimed",
+            "already_claimed": True,
+            "verified": False,
+            "verification_reason": "already_present",
+            "message": "Trophy is already present in your profile README."
+        }
+
+    commit_res = await client.commit_readme_trophy(
+        new_content=updated_content,
+        sha=readme_info["sha"]
+    )
+    return commit_res
+
+
 # --- CONSTRUCT SANDBOX EXECUTION (PHASE 6) ---
 class ConstructRunRequest(BaseModel):
     prompt_id: str
@@ -618,9 +1326,9 @@ class UpdateProjectsRequest(BaseModel):
     projects: list
 
 @app.post("/update-generated-projects")
-async def update_generated_projects(req: UpdateProjectsRequest):
+async def update_generated_projects(req: UpdateProjectsRequest, current_user: dict = Depends(get_current_user)):
     try:
-        success = database.update_latest_profile_projects(req.projects)
+        success = database.update_latest_profile_projects(req.projects, user_id=current_user["id"])
         if success:
             return {"status": "updated"}
         return {"status": "no_profile_found"}
@@ -659,12 +1367,17 @@ def create_new_chat(user: dict = Depends(get_current_user)):
 
 @app.get("/chat/history/{session_id}")
 def get_history_by_session(session_id: str, user: dict = Depends(get_current_user)):
-    # Optional: Verify user owns session? For now just fetch messages.
+    sess = database.get_chat_session(session_id)
+    if sess and sess.get("user_id") != user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: You do not own this chat session.")
     history = database.get_chat_history(session_id)
     return {"messages": history}
 
 @app.delete("/chat/sessions/{session_id}")
 async def delete_chat_session(session_id: str, user: dict = Depends(get_current_user)):
+    sess = database.get_chat_session(session_id)
+    if sess and sess.get("user_id") != user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: You do not own this chat session.")
     try:
         database.delete_chat_session(session_id)
         return {"status": "deleted"}
@@ -673,13 +1386,18 @@ async def delete_chat_session(session_id: str, user: dict = Depends(get_current_
 
 @app.post("/chat")
 def career_chat(req: ChatRequest, user: dict = Depends(get_current_user)):
+    check_endpoint_rate_limit("career_chat", user["id"], limit=20)
+    if len(req.message) > 2000:
+        raise HTTPException(status_code=400, detail="Message exceeds 2,000 character maximum.")
+    
+    sess = database.get_chat_session(req.session_id)
+    if sess and sess.get("user_id") != user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: You do not own this chat session.")
+
     history = database.get_profile_by_user_id(user['id'])
     if not history:
         return {"response": "Please upload a resume first."}
         
-    # Check if session exists, if not create (auto-recovery)
-    # Note: get_chat_history returns messages, not session meta. 
-    # But create_chat_session is safe (INSERT OR IGNORE)
     database.create_chat_session(req.session_id, user['id'], f"Chat about {req.message[:20]}...")
 
     # Load Past Context
@@ -715,7 +1433,6 @@ def career_chat(req: ChatRequest, user: dict = Depends(get_current_user)):
         
         # Auto-Rename if first message
         if len(past_msgs) == 0:
-             # Simple rename logic (could use AI)
              new_title = req.message.split('\n')[0][:30]
              database.rename_chat_session(req.session_id, new_title)
 
@@ -724,23 +1441,22 @@ def career_chat(req: ChatRequest, user: dict = Depends(get_current_user)):
         return {"response": f"I'm having trouble thinking right now. ({str(e)})"}
 
 @app.get("/history")
-async def get_history():
-    return database.get_all_profiles()
+async def get_history(user: dict = Depends(get_current_user)):
+    return database.get_all_profiles(user_id=user["id"])
 
 @app.get("/history/{profile_id}")
-async def load_history_item(profile_id: int):
-    data = database.get_profile_by_id(profile_id)
+async def load_history_item(profile_id: int, user: dict = Depends(get_current_user)):
+    data = database.get_profile_by_id(profile_id, user_id=user["id"])
     if not data:
-        return JSONResponse(status_code=404, content={"error": "Not found"})
+        raise HTTPException(status_code=404, detail="Profile record not found")
     return data
 
 @app.delete("/history/{profile_id}")
-async def delete_history_item(profile_id: int):
-    try:
-        database.delete_profile(profile_id)
-        return {"message": "Deleted successfully"}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+async def delete_history_item(profile_id: int, user: dict = Depends(get_current_user)):
+    deleted = database.delete_profile(profile_id, user_id=user["id"])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Profile record not found")
+    return {"message": "Deleted successfully"}
     
 
 # --- Resume Builder API ---
@@ -749,12 +1465,13 @@ class ResumeBuildRequest(BaseModel):
     job_description: str
 
 @app.post("/resume/build")
-async def build_resume(req: ResumeBuildRequest):
+async def build_resume(req: ResumeBuildRequest, user: dict = Depends(get_current_user)):
+    check_endpoint_rate_limit("resume_build", user["id"], limit=10)
+    if len(req.job_description) > 5000:
+        raise HTTPException(status_code=400, detail="Job description exceeds 5,000 character maximum.")
     try:
-        # Gather Context
-        profile = database.get_latest_profile() or {}
-        # Get projects user actually WORKED on (from 'My Lab')
-        active_projects = database.get_all_active_projects() 
+        profile = database.get_profile_by_user_id(user['id']) or {}
+        active_projects = database.get_all_active_projects(user['id']) 
         
         result = resume_bot.generate_resume_content(profile, active_projects, req.job_description)
         return result
@@ -860,40 +1577,38 @@ async def get_workspace(user: dict = Depends(get_current_user)):
     return {"projects": projects}
 
 @app.get("/project/{project_id}")
-async def get_project(project_id: str):
-    p = database.get_project_by_id(project_id)
+async def get_project(project_id: str, user: dict = Depends(get_current_user)):
+    p = database.get_project_by_id(project_id, user_id=user["id"])
     if p:
         return p
-    
     raise HTTPException(status_code=404, detail="Project not found")
 
 @app.post("/project/unlock-phase")
-async def unlock_phase(req: UpdatePhaseRequest):
-    # Simpler global update
+async def unlock_phase(req: UpdatePhaseRequest, user: dict = Depends(get_current_user)):
     try:
-        # Check current phase first to ensure we are incrementing correctly
-        p = database.get_project_by_id(req.project_id)
+        p = database.get_project_by_id(req.project_id, user_id=user["id"])
         if not p:
-            raise HTTPException(status_code=404)
+            raise HTTPException(status_code=404, detail="Project not found")
             
         if p['current_phase'] == req.phase_id:
              database.update_phase_progress(req.project_id, req.phase_id + 1)
-             
-             # Dynamic Growth Update
              new_stage = database.recalculate_user_growth(None)
-             print(f"User Growth Updated: {new_stage}")
-             
              return {"status": "updated", "new_stage": new_stage}
              
         return {"status": "no_change"}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Unlock Error: {e}")
         return {"status": "error"}
 
 @app.delete("/project/{project_id}")
-async def delete_project(project_id: str):
+async def delete_project(project_id: str, user: dict = Depends(get_current_user)):
+    p = database.get_project_by_id(project_id, user_id=user["id"])
+    if not p:
+        raise HTTPException(status_code=404, detail="Project not found")
     try:
-        database.delete_project(project_id)
+        database.delete_project(project_id, user_id=user["id"])
         return {"status": "deleted"}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -902,8 +1617,6 @@ async def delete_project(project_id: str):
 import random
 import string
 
-# In-memory session store (Code -> ProjectID)
-# In production, use Redis or DB
 SESSION_CODES = {}
 
 class SessionRequest(BaseModel):
@@ -917,27 +1630,31 @@ class SyncCodeRequest(BaseModel):
     code: str
 
 @app.post("/session/create")
-async def create_session(req: SessionRequest):
-    # Generate 6-digit code
+async def create_session(req: SessionRequest, user: dict = Depends(get_current_user)):
+    p = database.get_project_by_id(req.project_id, user_id=user["id"])
+    if not p:
+        raise HTTPException(status_code=404, detail="Project not found")
     code = ''.join(random.choices(string.digits, k=6))
     SESSION_CODES[code] = req.project_id
     return {"code": code}
 
 @app.post("/session/join")
-async def join_session(req: JoinSessionRequest):
+async def join_session(req: JoinSessionRequest, user: dict = Depends(get_current_user)):
     project_id = SESSION_CODES.get(req.code)
     if not project_id:
         raise HTTPException(status_code=404, detail="Invalid Session Code")
     return {"project_id": project_id}
 
 @app.post("/project/sync")
-async def sync_code(req: SyncCodeRequest):
+async def sync_code(req: SyncCodeRequest, user: dict = Depends(get_current_user)):
+    if len(req.code.encode("utf-8")) > MAX_CODE_SIZE:
+        raise HTTPException(status_code=400, detail="Code exceeds 20 KB limit.")
     database.update_project_code(req.project_id, req.code)
     return {"status": "synced"}
 
 @app.get("/project/{project_id}/sync")
-async def get_latest_code(project_id: str):
-    p = database.get_project_by_id(project_id)
+async def get_latest_code(project_id: str, user: dict = Depends(get_current_user)):
+    p = database.get_project_by_id(project_id, user_id=user["id"])
     if not p: return {"code": ""}
     return {"code": p.get('code', "")}
 
@@ -1044,37 +1761,34 @@ def get_profile_full(user: dict = Depends(get_current_user)):
     }
 
 @app.post("/profile/update")
-async def update_profile(req: ProfileUpdateRequest):
-    p = database.get_latest_profile()
-    if not p: raise HTTPException(status_code=404)
-    
-    database.update_profile_details(p['id'], req.dict())
+async def update_profile(req: ProfileUpdateRequest, user: dict = Depends(get_current_user)):
+    p = database.get_profile_by_user_id(user['id'])
+    if not p: raise HTTPException(status_code=404, detail="Profile not found")
+    data = req.dict() if hasattr(req, "dict") else req.model_dump()
+    database.update_profile_details(p['id'], data)
     return {"status": "updated"}
 
 @app.post("/profile/goals")
-async def add_goal(req: GoalRequest):
-    p = database.get_latest_profile()
-    if not p: raise HTTPException(status_code=404)
-    
-    database.add_user_goal(p['id'], req.dict())
+async def add_goal(req: GoalRequest, user: dict = Depends(get_current_user)):
+    p = database.get_profile_by_user_id(user['id'])
+    if not p: raise HTTPException(status_code=404, detail="Profile not found")
+    data = req.dict() if hasattr(req, "dict") else req.model_dump()
+    database.add_user_goal(p['id'], data)
     return {"status": "added"}
 
 @app.delete("/profile/goals/{goal_id}")
-async def delete_goal(goal_id: int):
+async def delete_goal(goal_id: int, user: dict = Depends(get_current_user)):
     database.delete_goal(goal_id)
     return {"status": "deleted"}
 
 @app.put("/profile/goals/{goal_id}")
-async def update_goal(goal_id: int, req: GoalStatusRequest):
+async def update_goal(goal_id: int, req: GoalStatusRequest, user: dict = Depends(get_current_user)):
     database.update_goal_status(goal_id, req.is_done)
     return {"status": "updated"}
 
 @app.post("/profile/activity")
-async def log_activity(req: ActivityRequest):
-    p = database.get_latest_profile()
-    if not p: raise HTTPException(status_code=404)
-    
-    database.log_user_activity(p['id'], req.date, req.hours, req.level)
+async def log_activity(req: ActivityRequest, user: dict = Depends(get_current_user)):
+    database.log_user_activity(user['id'], req.date, req.hours, req.level)
     return {"status": "logged"}
 
 # --- Community Chat Endpoints ---

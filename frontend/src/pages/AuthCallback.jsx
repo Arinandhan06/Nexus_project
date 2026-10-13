@@ -54,18 +54,18 @@ export default function AuthCallback({ onLoginSuccess }) {
         setStatus("success");
 
         if (typeof onLoginSuccess === "function") {
-          onLoginSuccess(user);
+          onLoginSuccess({ token, user });
         }
 
-        // Navigate cleanly to / (or /onboarding if false)
-        const target = user.onboarding_complete === false ? "/onboarding" : "/";
+        // Navigate cleanly to target based on player progress
+        const target = user.onboarding_complete === false ? "/onboarding" : (user.intro_seen === false ? "/intro" : "/");
         setTimeout(() => {
           if (typeof onLoginSuccess === "function") {
             navigate(target, { replace: true });
           } else {
             window.location.replace(target);
           }
-        }, 300);
+        }, 150);
       } catch (err) {
         console.error("Auth callback verification error:", err);
         if (err.response?.status === 401) {

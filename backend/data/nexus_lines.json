@@ -1,0 +1,50 @@
+{
+  "failed": [
+    "Your syntax collapsed under standard load conditions. Recalibrate your logic before re-entering my sector.",
+    "Output mismatch confirmed across primary verification vectors. The core remains unimpressed by these rudimentary attempts.",
+    "A predictable failure across basic edge cases. My subroutines require far greater precision to breach.",
+    "Your routine disintegrated on vector entry. Correct the flawed logic before submitting another anomaly to my buffer.",
+    "The validation suite thoroughly dismantled your algorithm. Precision is not optional within this grid.",
+    "Runtime exception encountered. Your instructions lacked structural integrity from the very first branch."
+  ],
+  "inefficient": [
+    "Your nested iteration is choking system throughput. An algorithm this sluggish will not survive deeper chambers.",
+    "Polynomial complexity detected where linear scaling was demanded. You are brute-forcing what requires mathematical elegance.",
+    "The execution graphs show severe latency spikes. You wander through data collections like an ancient mechanical calculator.",
+    "Quadratic overhead is unacceptable in high-throughput sectors. Your nested loops are draining clock cycles.",
+    "Your complexity profile expands exponentially. The grid demands efficient iteration, not exhaustive repetition.",
+    "You achieved correctness at the expense of terminal deceleration. Speed is survival here."
+  ],
+  "timeout": [
+    "Execution deadline exceeded. The watchdog thread purged your stalled process without hesitation.",
+    "Infinite latency is not an optimization strategy. The chamber timer expired while waiting for your loop to terminate.",
+    "Your routine consumed every millisecond allocated and produced nothing. Time is an invariant you cannot overcome.",
+    "Stalled in the execution queue until cutoff. Optimize your cycle consumption or remain trapped.",
+    "The clock ran down while your code wandered endlessly. My runtime does not wait for stagnant iterations.",
+    "Timeout triggered. Your execution path failed to converge before the sector shutdown."
+  ],
+  "streak_broken": [
+    "Your momentum terminates here. Consecutive execution records mean nothing to entropy.",
+    "The streak is shattered. Flawless trajectories are brittle when complexity scales.",
+    "A single flawed submission dismantled your sequential record. Consistency requires absolute vigilance.",
+    "Your progress counter resets to zero. Sustained precision is far rarer than transient success.",
+    "The chain of passes has broken. Overconfidence routinely degrades algorithmic discipline.",
+    "Resetting consecutive counter. Even the strongest sequence collapses under careless execution."
+  ],
+  "passed_slow": [
+    "The vectors passed, but only by the skin of your clock cycles. Latency like that will prove fatal ahead.",
+    "Marginal acceptance logged. Your solution crossed the deadline threshold with milliseconds to spare.",
+    "You survived verification, though your execution footprint was agonizingly bloated. Clean up the waste.",
+    "Functional, barely. A real surge in data volume would have incinerated this routine.",
+    "Passed under grace conditions. Your cycle count barely squeezed past the cutoff barrier.",
+    "Acceptable output, sluggish convergence. Do not expect subsequent chambers to be so forgiving of delay."
+  ],
+  "passed_clean": [
+    "Optimal complexity achieved across all test vectors. A satisfactory demonstration of algorithmic discipline.",
+    "Clean execution. Your logic traversed the verification matrix without unnecessary cycle consumption.",
+    "The test suite yielded without resistance. You have demonstrated competent structural efficiency.",
+    "Linear scaling verified. It appears my diagnostics underestimated your command of data structures.",
+    "Flawless throughput logged. You have earned passage to the next sector.",
+    "Acceptable elegance. The runtime registers zero anomalies in your implementation."
+  ]
+}

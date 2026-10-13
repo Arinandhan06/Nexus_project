@@ -71,6 +71,9 @@ def map_judge0_status(status_id: int) -> str:
         return "runtime_error"
     return "internal_error"
 
+def is_mock_externals() -> bool:
+    return os.getenv("MOCK_EXTERNALS", "").lower() in ("true", "1", "yes")
+
 async def resolve_python_language_id(client: Optional[httpx.AsyncClient] = None) -> int:
     """
     Calls GET /languages once and resolves Python 3 language ID by NAME.
@@ -79,6 +82,10 @@ async def resolve_python_language_id(client: Optional[httpx.AsyncClient] = None)
     global _python_language_id
     if _python_language_id is not None:
         return _python_language_id
+
+    if is_mock_externals():
+        _python_language_id = 71
+        return 71
 
     owns_client = False
     if client is None:
@@ -130,6 +137,70 @@ async def execute_batch(
     """
     if not submissions:
         return []
+
+    if is_mock_externals():
+        import sys
+        import subprocess
+        import time as _time
+        parsed_results = []
+        for sub in submissions:
+            source = sub.get("source_code", "")
+            stdin_data = sub.get("stdin", "")
+            start_t = _time.time()
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-c", source],
+                    input=stdin_data,
+                    text=True,
+                    capture_output=True,
+                    timeout=sub.get("cpu_time_limit", 2.0)
+                )
+                time_ms = int((_time.time() - start_t) * 1000)
+                if proc.returncode == 0:
+                    parsed_results.append({
+                        "token": "mock_judge0_token",
+                        "status_id": 3,
+                        "status": "passed",
+                        "time_ms": max(1, time_ms),
+                        "memory_kb": 12000,
+                        "stdout": proc.stdout,
+                        "stderr": "",
+                        "error_message": ""
+                    })
+                else:
+                    parsed_results.append({
+                        "token": "mock_judge0_token",
+                        "status_id": 11,
+                        "status": "runtime_error",
+                        "time_ms": time_ms,
+                        "memory_kb": 12000,
+                        "stdout": proc.stdout,
+                        "stderr": proc.stderr,
+                        "error_message": proc.stderr
+                    })
+            except subprocess.TimeoutExpired:
+                parsed_results.append({
+                    "token": "mock_judge0_token",
+                    "status_id": 5,
+                    "status": "time_limit",
+                    "time_ms": int(sub.get("cpu_time_limit", 2.0) * 1000),
+                    "memory_kb": 12000,
+                    "stdout": "",
+                    "stderr": "Time limit exceeded",
+                    "error_message": "Time limit exceeded"
+                })
+            except Exception as e:
+                parsed_results.append({
+                    "token": "mock_judge0_token",
+                    "status_id": 13,
+                    "status": "internal_error",
+                    "time_ms": 0,
+                    "memory_kb": 0,
+                    "stdout": "",
+                    "stderr": str(e),
+                    "error_message": "Mock execution error"
+                })
+        return parsed_results
 
     owns_client = False
     if client is None:

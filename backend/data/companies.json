@@ -1,0 +1,87 @@
+[
+  {
+    "id": "vantablack-systems",
+    "name": "Vantablack Systems",
+    "sector": "Infrastructure & Autonomous Systems",
+    "focus": "Deep low-level runtimes, zero-latency mesh networking, and deterministic execution.",
+    "role_title": "Core Infrastructure Kernel Architect",
+    "values_description": "Values raw algorithmic efficiency and minimal execution overhead.",
+    "weights": {
+      "efficiency": 0.40,
+      "cleanliness": 0.20,
+      "speed": 0.15,
+      "independence": 0.15,
+      "streak": 0.05,
+      "first_try": 0.05
+    },
+    "template_pitch": "Your algorithms demonstrate formidable runtime discipline and zero tolerance for superfluous execution cycles. In our deep infrastructure nodes, engineers who engineer for raw asymptotic efficiency are king."
+  },
+  {
+    "id": "orbitfall",
+    "name": "Orbitfall",
+    "sector": "Frontier AI & Real-Time Runtimes",
+    "focus": "High-velocity inference engines, distributed tensor routing, and rapid prototyping.",
+    "role_title": "Latency Optimization Engineer",
+    "values_description": "Values iteration speed, rapid execution, and high first-attempt throughput.",
+    "weights": {
+      "speed": 0.45,
+      "efficiency": 0.25,
+      "first_try": 0.15,
+      "cleanliness": 0.05,
+      "independence": 0.05,
+      "streak": 0.05
+    },
+    "template_pitch": "You move with relentless velocity, cutting through algorithmic bottlenecks before sub-systems can even register latency. In high-frequency AI deployment, that rapid iteration cycle is exactly what keeps our pipelines humming."
+  },
+  {
+    "id": "lumen-forge",
+    "name": "Lumen Forge",
+    "sector": "High-Craft Product Platforms",
+    "focus": "Architectural resilience, elegant code abstractions, and human-readable systems.",
+    "role_title": "Staff Systems Craftsman",
+    "values_description": "Values impeccable code cleanliness, formatting, and structural discipline.",
+    "weights": {
+      "cleanliness": 0.45,
+      "efficiency": 0.20,
+      "independence": 0.15,
+      "speed": 0.10,
+      "first_try": 0.05,
+      "streak": 0.05
+    },
+    "template_pitch": "Your code exhibits meticulous craftsmanship, maintaining structure and readability even under intense simulator pressure. We believe lasting software is born from discipline, and your submissions demonstrate that standard."
+  },
+  {
+    "id": "gridwell",
+    "name": "Gridwell",
+    "sector": "Distributed Financial Rails",
+    "focus": "Mission-critical financial clearance, transactional consistency, and zero-defect ledgers.",
+    "role_title": "High-Integrity Consensus Engineer",
+    "values_description": "Values clean code and self-reliant problem solving with minimal hint dependence.",
+    "weights": {
+      "cleanliness": 0.30,
+      "independence": 0.35,
+      "efficiency": 0.20,
+      "first_try": 0.10,
+      "streak": 0.05,
+      "speed": 0.00
+    },
+    "template_pitch": "You solve intricate problems independently with almost zero reliance on assistance hints, ensuring clean determinism. In zero-tolerance transactional ledgers, self-reliant precision is the highest virtue."
+  },
+  {
+    "id": "cobalt-finch",
+    "name": "Cobalt & Finch",
+    "sector": "Strategic Engineering Consultancy",
+    "focus": "Complex enterprise architecture transitions, hybrid cloud resiliency, and critical rescue ops.",
+    "role_title": "Senior Strategic Solutions Architect",
+    "values_description": "Values balanced capability across speed, cleanliness, efficiency, and consistency.",
+    "weights": {
+      "cleanliness": 0.20,
+      "efficiency": 0.20,
+      "speed": 0.20,
+      "independence": 0.20,
+      "first_try": 0.10,
+      "streak": 0.10
+    },
+    "template_pitch": "You strike an enviable equilibrium between velocity, structural elegance, and algorithmic precision. Our complex client architectures demand versatility, and your profile displays exactly that broad-spectrum readiness."
+  }
+]

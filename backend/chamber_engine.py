@@ -222,6 +222,18 @@ def enter_chamber(user_id: int, chamber_no: int) -> Dict[str, Any]:
     current = get_or_init_user_chamber_state(user_id, chamber_no)
     curr_state = current["state"]
 
+    # If currently ACTIVE but deadline has elapsed, auto-mark FAILED so retry is permitted
+    if curr_state == ChamberState.ACTIVE and current.get("deadline_at"):
+        try:
+            dl_str = current["deadline_at"].replace("Z", "")
+            deadline = datetime.fromisoformat(dl_str)
+            if datetime.utcnow() > deadline:
+                set_chamber_state(user_id, chamber_no, ChamberState.EVALUATING)
+                set_chamber_state(user_id, chamber_no, ChamberState.FAILED)
+                curr_state = ChamberState.FAILED
+        except Exception:
+            pass
+
     if curr_state not in (ChamberState.UNLOCKED, ChamberState.PREPARING, ChamberState.FAILED):
         raise ValueError(
             f"Cannot enter Chamber {chamber_no} from state '{curr_state}'. "
@@ -270,7 +282,7 @@ def enter_chamber(user_id: int, chamber_no: int) -> Dict[str, Any]:
         "chamber_no": chamber_no,
         "state": updated_state["state"],
         "challenge_id": challenge["id"],
-        "deadline_at": deadline.isoformat(),
+        "deadline_at": deadline.isoformat() + "Z",
         "seconds_remaining": time_limit,
         "attempts": updated_state["attempts"],
         "challenge": safe_chal
@@ -295,21 +307,34 @@ def get_current_chamber_info(user_id: int, chamber_no: int) -> Dict[str, Any]:
         matched_chal = ch_def["challenges"][0]
 
     seconds_remaining = 0
+    curr_state = st["state"]
     if st.get("deadline_at"):
         try:
-            deadline = datetime.fromisoformat(st["deadline_at"])
+            dl_str = st["deadline_at"].replace("Z", "")
+            deadline = datetime.fromisoformat(dl_str)
             delta = (deadline - datetime.utcnow()).total_seconds()
             seconds_remaining = max(0, int(delta))
+            if seconds_remaining == 0 and curr_state == ChamberState.ACTIVE:
+                try:
+                    set_chamber_state(user_id, chamber_no, ChamberState.EVALUATING)
+                    set_chamber_state(user_id, chamber_no, ChamberState.FAILED)
+                    curr_state = ChamberState.FAILED
+                except Exception:
+                    pass
         except Exception:
             seconds_remaining = 0
 
     safe_challenge = sanitize_challenge(matched_chal) if matched_chal else None
 
+    deadline_iso = st.get("deadline_at")
+    if deadline_iso and not deadline_iso.endswith("Z"):
+        deadline_iso = deadline_iso + "Z"
+
     return {
         "chamber_no": chamber_no,
-        "state": st["state"],
+        "state": curr_state,
         "attempts": st.get("attempts", 0),
-        "deadline_at": st.get("deadline_at"),
+        "deadline_at": deadline_iso,
         "seconds_remaining": seconds_remaining,
         "challenge": safe_challenge
     }
@@ -516,10 +541,12 @@ async def process_chamber_submission_pipeline(
                 all_passed = False
 
             # Hard security rule: never expose hidden test inputs or outputs
+            t_err = (parsed.get("error") or j_res.get("error_message") or "") if test_status != "passed" else None
             tests_summary.append({
                 "id": idx + 1,
                 "status": test_status,
-                "time_ms": t_time
+                "time_ms": t_time,
+                "error": t_err
             })
 
         # Step 6: AST Evaluator
@@ -542,6 +569,24 @@ async def process_chamber_submission_pipeline(
             cleanliness_score=cleanliness
         )
 
+        # Step 7b: Atomic NXP & Matrix Award Transaction (SCRUM-26, SCRUM-27)
+        latest_attempt_id = database.get_latest_attempt_id(user_id, chamber_no)
+        chal_id = challenge.get("id", f"chamber-{chamber_no}")
+        hint_lvl = database.get_aria_hints_used(user_id, chal_id)
+
+        award_data = database.commit_chamber_award(
+            user_id=user_id,
+            chamber_no=chamber_no,
+            passed=all_passed,
+            inefficient=inefficient,
+            cleanliness_score=cleanliness,
+            attempt_number=st.get("attempts", 1),
+            hint_level=hint_lvl,
+            axis_weights=challenge.get("axis_weights", {"dsa": 0.7, "system_design": 0.2, "cleanliness": 0.1}),
+            system_design_gain=challenge.get("system_design_gain", 3),
+            attempt_id=latest_attempt_id
+        )
+
         set_chamber_state(user_id, chamber_no, target_state)
 
         # Step 8: Push WS state and result events
@@ -550,6 +595,7 @@ async def process_chamber_submission_pipeline(
             "payload": {"chamber_no": chamber_no, "state": target_state}
         })
 
+        first_err = next((t["error"] for t in tests_summary if t.get("error")), None)
         await ws.ws_manager.broadcast_to_user(user_id, {
             "type": "result",
             "payload": {
@@ -561,9 +607,78 @@ async def process_chamber_submission_pipeline(
                 "expected": expected_complexity,
                 "inefficient": inefficient,
                 "cleanliness": cleanliness,
-                "findings": findings
+                "findings": findings,
+                "error": first_err
             }
         })
+
+        # Step 8b: Push WS progress event (SCRUM-26, SCRUM-27)
+        if all_passed:
+            await ws.ws_manager.broadcast_to_user(user_id, {
+                "type": "progress",
+                "payload": {
+                    "nxp_awarded": award_data.get("nxp_awarded", 0),
+                    "total_nxp": award_data.get("total_nxp", 0),
+                    "streak": award_data.get("streak", 0),
+                    "multiplier": award_data.get("multiplier", 1.0),
+                    "matrix": award_data.get("matrix", {}),
+                    "deltas": award_data.get("deltas", {})
+                }
+            })
+
+        # Step 9: Compute & push NEXUS taunt event (SCRUM-23) - must never delay result event
+        try:
+            import nexus_ai
+            if not all_passed:
+                if any(t.get("status") == "time_limit" for t in tests_summary):
+                    event_type = "timeout"
+                elif st.get("attempts", 1) > 2:
+                    event_type = "streak_broken"
+                else:
+                    event_type = "failed"
+            else:
+                if inefficient:
+                    event_type = "inefficient"
+                elif total_time_ms > 1000:
+                    event_type = "passed_slow"
+                else:
+                    event_type = "passed_clean"
+
+            top_findings_list = [f.get("message", "") for f in findings[:2]]
+            # Calculate realistic time_used_pct and streak
+            time_limit = challenge.get("time_limit_seconds", 1200)
+            time_used_pct = 50
+            if "deadline_at" in st and st["deadline_at"]:
+                try:
+                    if isinstance(st["deadline_at"], str):
+                        dl = datetime.fromisoformat(st["deadline_at"])
+                    else:
+                        dl = st["deadline_at"]
+                    remaining_sec = max(0, int((dl - datetime.utcnow()).total_seconds()))
+                    time_used_pct = min(100, max(0, int(((time_limit - remaining_sec) / max(1, time_limit)) * 100)))
+                except Exception:
+                    time_used_pct = 50
+
+            user_profile = database.get_player_profile(user_id)
+            streak_val = user_profile.get("current_streak", 0) if user_profile else (1 if all_passed else 0)
+
+            taunt_payload = {
+                "event_type": event_type,
+                "chamber_no": chamber_no,
+                "challenge_title": challenge.get("title", f"Chamber {chamber_no}"),
+                "complexity_estimate": complexity,
+                "top_findings": top_findings_list,
+                "attempts": st.get("attempts", 1),
+                "streak": streak_val,
+                "time_used_pct": time_used_pct
+            }
+            taunt_text = await nexus_ai.generate_taunt(taunt_payload)
+            await ws.ws_manager.broadcast_to_user(user_id, {
+                "type": "nexus",
+                "payload": {"text": taunt_text}
+            })
+        except Exception as taunt_err:
+            print(f"Error generating NEXUS taunt: {taunt_err}")
 
     except Exception as e:
         print(f"Error in chamber submission pipeline: {e}")
@@ -589,3 +704,73 @@ async def process_chamber_submission_pipeline(
             })
         except Exception:
             pass
+
+
+async def evaluate_code(challenge: Dict[str, Any], code: str) -> Dict[str, Any]:
+    """
+    Evaluates submitted code for a challenge using Judge0, hidden tests, and AST evaluator.
+    Returns test summaries, complexity, efficiency, and cleanliness.
+    Ensures hidden test inputs/outputs are never returned in the summary.
+    """
+    hidden_tests = challenge.get("hidden_tests", [])
+    entry_point = challenge.get("entry_point", "solution")
+    expected_complexity = challenge.get("expected_complexity", "O(n)")
+
+    program_code = harness.build_program(code, entry_point)
+    submissions = []
+    for test in hidden_tests:
+        stdin_json = harness.prepare_test_stdin(test.get("input"))
+        submissions.append({
+            "source_code": program_code,
+            "stdin": stdin_json,
+            "cpu_time_limit": 2.0,
+            "memory_limit": 128000
+        })
+
+    judge_results = await judge0.execute_batch(submissions)
+
+    tests_summary = []
+    total_time_ms = 0
+    all_passed = True if len(hidden_tests) > 0 else False
+
+    for idx, test in enumerate(hidden_tests):
+        j_res = judge_results[idx] if idx < len(judge_results) else {
+            "status": "internal_error", "time_ms": 0, "stdout": "", "error_message": ""
+        }
+        t_time = j_res.get("time_ms", 0)
+        total_time_ms += t_time
+
+        parsed = harness.parse_harness_output(j_res.get("stdout", ""))
+
+        if j_res.get("status") == "passed":
+            if parsed.get("found") and not parsed.get("error"):
+                is_correct = harness.compare_results(parsed.get("result"), test.get("output"))
+                test_status = "passed" if is_correct else "wrong_answer"
+            elif parsed.get("error"):
+                test_status = "runtime_error"
+            else:
+                test_status = "wrong_answer"
+        else:
+            test_status = j_res.get("status", "internal_error")
+
+        if test_status != "passed":
+            all_passed = False
+
+        tests_summary.append({
+            "id": idx + 1,
+            "status": test_status,
+            "time_ms": t_time
+        })
+
+    ast_eval = evaluator.evaluate_code_ast(code, expected_complexity)
+    return {
+        "all_passed": all_passed,
+        "total_time_ms": total_time_ms,
+        "complexity": ast_eval["complexity_estimate"],
+        "expected": expected_complexity,
+        "inefficient": ast_eval["inefficient"],
+        "cleanliness": ast_eval["cleanliness"],
+        "findings": ast_eval["findings"],
+        "tests": tests_summary
+    }
+

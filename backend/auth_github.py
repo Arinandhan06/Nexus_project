@@ -101,7 +101,7 @@ def github_login():
     return {"url": github_auth_url}
 
 @router.get("/auth/github/callback", dependencies=[Depends(check_rate_limit)])
-async def github_callback(code: Optional[str] = None, state: Optional[str] = None):
+async def github_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None):
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state parameter")
 
@@ -113,6 +113,11 @@ async def github_callback(code: Optional[str] = None, state: Optional[str] = Non
     client_id = os.getenv("GITHUB_CLIENT_ID", "")
     client_secret = os.getenv("GITHUB_CLIENT_SECRET", "")
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
+    # If the user reached this callback via 127.0.0.1, match the frontend redirect to 127.0.0.1
+    req_host = getattr(request.url, "hostname", "")
+    if req_host == "127.0.0.1" and "localhost:5173" in frontend_url:
+        frontend_url = frontend_url.replace("localhost", "127.0.0.1")
 
     # Exchange code for access token with GitHub
     token_url = "https://github.com/login/oauth/access_token"

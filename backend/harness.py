@@ -43,8 +43,37 @@ def __nexus_execute_harness():
             __sol_inst = globals()["Solution"]()
             __fn = getattr(__sol_inst, "{entry_point}", None)
 
+        # Fallback 1: Common LeetCode aliases for chamber challenges
         if __fn is None:
-            print(f"{{__MARKER}}" + __json.dumps({{"error": "EntryPointNotFound: '{entry_point}' not found in code"}}))
+            __aliases = {{
+                "max_containment": ["maxArea", "max_area", "containerWithMostWater", "max_capacity"],
+                "triangulate_sensors": ["twoSum", "two_sum", "find_pair"],
+                "filter_spikes": ["decodeString", "decode_string", "simplifyPath", "simplify_path"],
+                "circuit_breaker": ["trap", "trappingRainWater", "trap_rain_water"],
+            }}
+            for __cand in __aliases.get("{entry_point}", []):
+                if __cand in globals() and callable(globals()[__cand]):
+                    __fn = globals()[__cand]
+                    break
+                if "Solution" in globals():
+                    __sol_inst = globals()["Solution"]()
+                    if hasattr(__sol_inst, __cand) and callable(getattr(__sol_inst, __cand)):
+                        __fn = getattr(__sol_inst, __cand)
+                        break
+
+        # Fallback 2: Check if exactly one callable function is defined in player code or Solution class
+        if __fn is None:
+            __candidates = []
+            if "Solution" in globals():
+                __sol_inst = globals()["Solution"]()
+                __candidates = [getattr(__sol_inst, m) for m in dir(__sol_inst) if not m.startswith("_") and callable(getattr(__sol_inst, m))]
+            if not __candidates:
+                __candidates = [v for k, v in list(globals().items()) if not k.startswith("_") and callable(v) and getattr(v, "__module__", None) in ("__main__", None) and k != "__nexus_execute_harness"]
+            if len(__candidates) == 1:
+                __fn = __candidates[0]
+
+        if __fn is None:
+            print(f"{{__MARKER}}" + __json.dumps({{"error": "EntryPointNotFound: '{entry_point}' not found in code. Please define 'def {entry_point}(...)' as specified in the directive."}}))
             return
 
         __res = __fn(*__args, **__kwargs)

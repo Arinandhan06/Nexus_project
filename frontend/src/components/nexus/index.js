@@ -6,3 +6,4 @@ export { default as StatBadge } from "./StatBadge";
 export { default as CodeEditor } from "./CodeEditor";
 export { default as SecureComms } from "./SecureComms";
 export { default as Terminal } from "./Terminal";
+export { default as NxpToast } from "./NxpToast";

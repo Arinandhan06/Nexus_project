@@ -4,9 +4,10 @@ import api from "./api";
  * Derives the WebSocket base URL matching the current API configuration.
  */
 export function getWsBaseUrl() {
-  const httpUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const defaultHost = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
+  const httpUrl = import.meta.env.VITE_API_URL || `http://${defaultHost}:8000`;
   try {
-    const parsed = new URL(httpUrl, typeof window !== "undefined" ? window.location.href : "http://localhost:8000");
+    const parsed = new URL(httpUrl, typeof window !== "undefined" ? window.location.href : `http://${defaultHost}:8000`);
     const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
     return `${wsProto}//${parsed.host}`;
   } catch {
@@ -22,6 +23,10 @@ export function getWsBaseUrl() {
  * Requests a single-use 30-second ticket for the WebSocket endpoint.
  */
 export async function fetchChamberWsTicket() {
+  const token = sessionStorage.getItem("authToken");
+  if (!token || token === "undefined") {
+    throw new Error("No active session token for WebSocket connection.");
+  }
   const res = await api.post("/ws/ticket");
   return res.data.ticket;
 }
@@ -52,6 +57,12 @@ export class ChamberWebSocketClient {
   async connect() {
     this.isClosedByUser = false;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    const token = sessionStorage.getItem("authToken");
+    if (!token || token === "undefined") {
+      this.setStatus("disconnected");
       return;
     }
 
@@ -98,8 +109,11 @@ export class ChamberWebSocketClient {
         this.scheduleReconnect();
       };
     } catch (err) {
-      console.warn("[WS] Ticket acquisition or handshake failed:", err?.message);
       this.onError(err);
+      if (err.response?.status === 401 || err.message?.includes("No active session")) {
+        this.setStatus("disconnected");
+        return;
+      }
       if (!this.isClosedByUser) {
         this.scheduleReconnect();
       } else {
