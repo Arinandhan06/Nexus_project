@@ -79,18 +79,24 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         )
     return user
 
+# Default credentials for NEXUS GitHub OAuth application
+DEFAULT_GITHUB_CLIENT_ID = "Ov23liBNJ2cHPGunM61D"
+DEFAULT_GITHUB_CLIENT_SECRET = "64e733cd2b46cac807c7a086f57782713c426f86"
+
 # --- Endpoints ---
 @router.get("/auth/github/login", response_model=LoginUrlResponse, dependencies=[Depends(check_rate_limit)])
 def github_login(request: Request):
-    client_id = os.getenv("GITHUB_CLIENT_ID", "")
+    client_id = os.getenv("GITHUB_CLIENT_ID") or DEFAULT_GITHUB_CLIENT_ID
     redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "")
-    if not client_id:
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    if not redirect_uri:
         if request and getattr(request, "base_url", None):
             req_host = getattr(request.url, "hostname", "")
-            if req_host not in ("127.0.0.1", "localhost"):
-                frontend_url = f"{request.url.scheme}://{request.url.netloc}"
-        return {"url": f"{frontend_url}/auth/callback#token=nexus_demo_token_8888"}
+            if req_host in ("127.0.0.1", "localhost", ""):
+                redirect_uri = "http://localhost:8000/auth/github/callback"
+            else:
+                redirect_uri = f"{request.url.scheme}://{request.url.netloc}/auth/github/callback"
+        else:
+            redirect_uri = "http://localhost:8000/auth/github/callback"
 
     state = secrets.token_hex(24)
     database.save_oauth_state(state)
@@ -115,14 +121,18 @@ async def github_callback(request: Request, code: Optional[str] = None, state: O
     if not is_valid:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
-    client_id = os.getenv("GITHUB_CLIENT_ID", "")
-    client_secret = os.getenv("GITHUB_CLIENT_SECRET", "")
+    client_id = os.getenv("GITHUB_CLIENT_ID") or DEFAULT_GITHUB_CLIENT_ID
+    client_secret = os.getenv("GITHUB_CLIENT_SECRET") or DEFAULT_GITHUB_CLIENT_SECRET
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
     # If the user reached this callback via 127.0.0.1, match the frontend redirect to 127.0.0.1
     req_host = getattr(request.url, "hostname", "")
     if req_host == "127.0.0.1" and "localhost:5173" in frontend_url:
         frontend_url = frontend_url.replace("localhost", "127.0.0.1")
+    elif req_host not in ("127.0.0.1", "localhost", ""):
+        # Running in cloud (e.g. Render / Vercel), frontend matches the origin or FRONTEND_URL
+        if not os.getenv("FRONTEND_URL"):
+            frontend_url = f"{request.url.scheme}://{request.url.netloc}"
 
     # Exchange code for access token with GitHub
     token_url = "https://github.com/login/oauth/access_token"

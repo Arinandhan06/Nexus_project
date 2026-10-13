@@ -13,6 +13,9 @@ export default function LoginSignup() {
     setError(null);
     try {
       const response = await api.get("/auth/github/login");
+      if (typeof response.data === "string" && response.data.toLowerCase().includes("<!doctype html")) {
+        throw new Error("NEXUS backend returned HTML instead of JSON. Verify backend is running on port 8000.");
+      }
       if (response.data && response.data.url) {
         window.location.assign(response.data.url);
       } else {

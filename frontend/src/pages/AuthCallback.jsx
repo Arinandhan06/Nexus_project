@@ -18,6 +18,20 @@ export default function AuthCallback({ onLoginSuccess }) {
     const processCallback = async () => {
       try {
         const hash = window.location.hash || "";
+        const search = window.location.search || "";
+
+        // Check if GitHub returned code + state query parameters directly to frontend
+        const searchParams = new URLSearchParams(search);
+        const code = searchParams.get("code");
+        const state = searchParams.get("state");
+
+        if (code && state) {
+          // Forward code and state to backend /auth/github/callback to complete token exchange
+          const backendBase = api.defaults.baseURL || (window.location.port === "5173" ? "http://localhost:8000" : "");
+          const callbackUrl = `${backendBase}/auth/github/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+          window.location.assign(callbackUrl);
+          return;
+        }
 
         // Parse token from fragment (#token=XYZ)
         let token = null;

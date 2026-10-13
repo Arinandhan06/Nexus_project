@@ -9,6 +9,23 @@ export default defineConfig({
     host: '::',
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/auth': 'http://localhost:8000',
+      '/chambers': 'http://localhost:8000',
+      '/me': 'http://localhost:8000',
+      '/profile': 'http://localhost:8000',
+      '/finale': 'http://localhost:8000',
+      '/bids': 'http://localhost:8000',
+      '/trophy': 'http://localhost:8000',
+      '/community': 'http://localhost:8000',
+      '/health': 'http://localhost:8000',
+      '/market-match': 'http://localhost:8000',
+      '/foundry': 'http://localhost:8000',
+      '/ws': {
+        target: 'ws://localhost:8000',
+        ws: true,
+      },
+    },
   },
   resolve: {
     alias: {

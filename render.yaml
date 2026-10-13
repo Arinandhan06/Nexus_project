@@ -25,6 +25,10 @@ services:
           type: web
           name: nexus-frontend
           property: host
+      - key: GITHUB_CLIENT_ID
+        value: Ov23liBNJ2cHPGunM61D
+      - key: GITHUB_CLIENT_SECRET
+        value: 64e733cd2b46cac807c7a086f57782713c426f86
 
   # Frontend Web Service (Static React SPA)
   - type: web
