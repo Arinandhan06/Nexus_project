@@ -2,11 +2,14 @@ import axios from "axios";
 
 const defaultHost = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
 const defaultPort = 8000;
-let rawBaseURL = import.meta.env.VITE_API_URL || `http://${defaultHost}:${defaultPort}`;
+const isDevPort = typeof window !== "undefined" && (window.location.port === "5173" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+const defaultBase = isDevPort ? `http://${defaultHost}:${defaultPort}` : "";
+
+let rawBaseURL = import.meta.env.VITE_API_URL || defaultBase;
 if (rawBaseURL && !rawBaseURL.startsWith("http://") && !rawBaseURL.startsWith("https://")) {
   rawBaseURL = `https://${rawBaseURL}`;
 }
-const baseURL = rawBaseURL.replace(/\/+$/, "");
+const baseURL = rawBaseURL ? rawBaseURL.replace(/\/+$/, "") : "";
 
 const api = axios.create({
   baseURL,

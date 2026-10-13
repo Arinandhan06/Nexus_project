@@ -5,7 +5,9 @@ import api from "./api";
  */
 export function getWsBaseUrl() {
   const defaultHost = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
-  let rawUrl = import.meta.env.VITE_API_URL || `http://${defaultHost}:8000`;
+  const isDevPort = typeof window !== "undefined" && (window.location.port === "5173" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const fallbackUrl = isDevPort ? `http://${defaultHost}:8000` : (typeof window !== "undefined" ? window.location.origin : `http://${defaultHost}:8000`);
+  let rawUrl = import.meta.env.VITE_API_URL || fallbackUrl;
   if (rawUrl && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
     rawUrl = `https://${rawUrl}`;
   }
