@@ -5,7 +5,11 @@ import api from "./api";
  */
 export function getWsBaseUrl() {
   const defaultHost = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
-  const httpUrl = import.meta.env.VITE_API_URL || `http://${defaultHost}:8000`;
+  let rawUrl = import.meta.env.VITE_API_URL || `http://${defaultHost}:8000`;
+  if (rawUrl && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
+    rawUrl = `https://${rawUrl}`;
+  }
+  const httpUrl = rawUrl.replace(/\/+$/, "");
   try {
     const parsed = new URL(httpUrl, typeof window !== "undefined" ? window.location.href : `http://${defaultHost}:8000`);
     const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
